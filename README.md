@@ -1,1 +1,1 @@
-# cs2020_msels
+# CS2020 repository
