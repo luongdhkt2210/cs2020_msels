@@ -131,7 +131,7 @@ if __name__ == '__main__':
         if len(sys.argv) == 1:
             parser.print_help()
             print(msg)
-            exit(1)
+            sys.exit(1)
         print(msg)
         options = parser.parse_args()
         main(options=options)
