@@ -136,6 +136,13 @@
 	 # invoke-inveigh -http n
 	 # invoke-inveighrelay -target target.local -command "whoami"
 	 # invoke-socksproxy -port 65535
+	 # make immutable:
+	 # chattr +i /path/to/filename
+	 # chattr +i /etc/shadow
+	 # lsattr /etc/shadow
+	 # remove immutable:
+	 # chattr -i /etc/shadow
+	 # lsattr /etc/shadow
 
 ### D. network 	
 
