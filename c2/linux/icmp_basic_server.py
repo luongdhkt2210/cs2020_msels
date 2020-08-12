@@ -134,7 +134,7 @@ class ICMPShell(object):
         self.sock.sendto(ip.get_packet(), (self.dst, 0))
 
         while 1:
-            if self.sock in select.select([self.sock], [], [])[0]:
+            if self.sock in select.select([self.sock], [], [], 15)[0]:
                 buff = self.sock.recv(4096)
                 if 0 == len(buff):
                     self.sock.close()
