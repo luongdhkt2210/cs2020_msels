@@ -1,9 +1,9 @@
 # MS17-010
 
-This repository is for public my work on MS17-010. I have no plan to do any support. **All support issues will not get response from me**.
+Code taken from this repository on MS17-010. I have no plan to do any support. **All support issues will not get response from me**.
 
 ## Files
-
+ * **ms17-010.py** Revised version of zzz_exploit, with command and upload options.
  * **BUG.txt** MS17-010 bug detail and some analysis
  * **checker.py** Script for finding accessible named pipe
  * **eternalblue_exploit7.py** Eternalblue exploit for windows 7/2008
