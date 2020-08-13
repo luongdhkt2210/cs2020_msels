@@ -1151,9 +1151,11 @@ Tested on:
 
         if len(sys.argv) == 1:
             parser.print_help()
+            print(message)
             sys.exit(1)
 
         options = parser.parse_args()
+        print(message)
         if options.username != '':
                 USERNAME = options.username
                 PASSWORD = options.password
