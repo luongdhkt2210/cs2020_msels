@@ -1,6 +1,70 @@
 # CS2020 repository
 
 #### MSEL concepts:
+###### GROUP 1
+```txt
+# initial entry 
+viewstate .net box
+rsync dmz boxes
+
+# foothold .net box
+c2
+proxy
+host enum 
+persistence user
+net enum
+local privesc
+kerberoast spns
+loot memory/registry
+downgrade attack
+
+# pivot sharepoint
+sharepoint cve(s)
+c2
+proxy
+host enum 
+persistence
+loot memory/registry
+enum dev share
+
+# pivot dev windows
+share with config 
+credentials
+c2
+proxy
+host enum 
+persistence
+loot memory/registry
+config with password/key to prod win
+
+# pivot prod windows
+credentials
+c2
+proxy
+host enum 
+persistence
+loot memory/registry
+domain privesc token theft
+domain privesc proc spoof
+sql user in memory
+
+# pivot sql server
+sql report/server cve 
+sql sysadmin xp_cmdshell
+c2
+proxy
+host enum 
+persistence
+loot memory/registry
+unconstrained aes and ntlm box hash
+
+```
+
+###### GROUP 2
+```txt
+```
+
+#### MSEL concepts:
 ###### DMZ
 ```txt
 # initial access firewall cve (out of scope?)
