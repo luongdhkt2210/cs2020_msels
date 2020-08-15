@@ -1,62 +1,112 @@
 # CS2020 repository
 
 #### MSEL concepts:
-###### GROUP 1
+###### GROUPS
 ```txt
 # initial entry 
-viewstate .net box
-rsync dmz boxes
+1. viewstate .net box (box and user)
+2. rsync dmz boxes (network only)
+3. bgp hijack for creds to dmz and internal (group 2)
 
-# foothold .net box
-c2
-proxy
-host enum 
-persistence user
-net enum
-local privesc
-kerberoast spns
-loot memory/registry
-downgrade attack
+# dmz boxes
+rsync or ssh for access
+c2 (icmp or http, ssh)
+proxy (socks or http shell)
+persistence (redghost, cron, immutable if root)
+linenum (find suid)
+prievesc (suid but not needed)
+proxy (icmp, socks, or http shell)
+malware (russian)
+evade (clear logs, timestamps)
 
-# pivot sharepoint
+# external .net box (prod windows, no auth)
+c2 (icmp or wmi, winrm, smb)
+proxy (socks ip4 to ipv4)
+host enum (seatbelt, edr, host)
+persistence user (wmi, registry, fs)
+net enum (bloodhound)
+kerberoast spns (user to dev)
+local privesc (potato svc account, user to dev)
+loot memory/registry (local admin)
+
+# pivot sharepoint (needs auth)
 sharepoint cve(s)
-c2
-proxy
+c2 (icmp or http, wmi, winrm, smb)
+proxy (socks ipv4 to ipv6)
+host enum (seatbelt, edr, host)
+persistence (wmi)
+loot memory/registry (local admin)
+net enum dev share (machine key for dev user)
+local privesc (potato svc account, user to dev)
+downgrade attack (user ntlm to dev)
+
+# pivot dev windows (requires auth)
+share with config (machine key)
+c2 (icmp or http)
+proxy (ipv6 to ipv4)
 host enum 
 persistence
-loot memory/registry
-enum dev share
+loot registry (local admin)
+domain privesc token theft (admin sql) 
+domain privesc proc spoof (admin sql)
+downgrade attack (admin sql)
 
-# pivot dev windows
-share with config 
-credentials
-c2
-proxy
-host enum 
-persistence
-loot memory/registry
-config with password/key to prod win
+# pivot file share (requires auth)
+share with configs to dev
+backups for ransomware?
 
-# pivot prod windows
-credentials
-c2
-proxy
-host enum 
-persistence
-loot memory/registry
-domain privesc token theft
-domain privesc proc spoof
-sql user in memory
-
-# pivot sql server
+# pivot sql server (no auth for report)
 sql report/server cve 
-sql sysadmin xp_cmdshell
-c2
-proxy
+sql sysadmin xp_cmdshell (from dev windows user)
+c2 (icmp only)
+proxy 
 host enum 
 persistence
-loot memory/registry
+loot memory/registry (hashes for privesc)
 unconstrained aes and ntlm box hash
+data exfil
+
+# dcsync on dc 1
+print spool (only dc1)
+golden ticket 
+dcysnc
+c2 (socks)
+proxy (no segmentation)
+disable rdp svc, port forward to dev windows
+
+# dc 2
+no print spool
+sysvol with shared password to (different user password for admin dev windows)
+ssh key to dev linux (user)
+c2 (socks)
+proxy (no segmentation)
+
+# dev linux
+rsync user
+ssh via dc2 
+bash history root password prod linux
+malware (russian)
+
+# prod linux
+ssh for access 
+c2 
+proxy (ssh)
+password or key to ippprinter
+password or key to scada linux
+password or key to dev linux
+malware (russian)
+
+# ippprinter
+ssh or telnet for access
+pivot point to scada network (no segmentation)
+proxy (microsocks or ssh) 
+malware (russian)?
+
+# scada linux
+rsync or ssh for access
+malware (russian)?
+c2
+proxy 
 
 ```
 
