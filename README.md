@@ -8,6 +8,14 @@
 2. rsync dmz boxes (network only)
 3. bgp hijack for creds to dmz and internal (group 2)
 
+# dmz prefix hijack
+quaqqa route for 65.x.101.0/25 prefix
+rogue ssh ?
+master dns hijack (out of scope)
+dmz dns hijack (mitm to external)
+web proxy hijack (mitm gateway)
+ftp hijack (rogue server creds)
+
 # dmz boxes
 rsync or ssh for access
 c2 (icmp or http, ssh)
@@ -98,15 +106,16 @@ malware (russian)
 
 # ippprinter
 ssh or telnet for access
+default creds, cups cve, snmpset
 pivot point to scada network (no segmentation)
-proxy (microsocks or ssh) 
+proxy (microsocks or ssh?) 
 malware (russian)?
 
 # scada linux
 rsync or ssh for access
 malware (russian)?
-c2
-proxy 
+c2 (icmp)
+proxy (icmp?)
 
 ```
 
