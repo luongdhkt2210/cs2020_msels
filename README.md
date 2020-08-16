@@ -7,6 +7,7 @@
 1. viewstate .net box (box and user)
 2. rsync dmz boxes (network only)
 3. bgp hijack for creds to dmz and internal (group 2)
+4. mitm dhcp6 for ipv4, arp spoof ?
 
 # dmz prefix hijack
 quaqqa route for 65.x.101.0/25 prefix
