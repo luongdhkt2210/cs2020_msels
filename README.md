@@ -9,6 +9,12 @@
 3. bgp hijack for creds to dmz and internal (group 2)
 4. mitm dhcp6 for ipv4, arp spoof ?
 
+# mitm greyspace
+arp spoof master dns
+dhcp v6 to v4
+llmnr, nbtns, addns dns
+rdp hijack, ssh hijack
+
 # dmz prefix hijack
 quaqqa route for 65.x.101.0/25 prefix
 rogue ssh ?
