@@ -246,6 +246,33 @@ proxy (socks?)
 persistence (redghost or malware)
 ```
 
+###### RECON 
+```txt
+# host discovery, ping sweep (ttl ~128 = windows) icmp proxychains?
+proxychains nmap -oA <NETWORK>_ping_sweep -v -T 3 -PP --data "\x41\x41" -n -sn <NETWORK/CIDR>
+
+# generic fingerprinting linux tcp -- rsync, ftp, ssh, telnet, dns, http, rpc, bgp, https,nfs, tomcat, mysql
+proxychains nmap -oA <NETWORK>_fingerprinting -sT -sV --open -p873,21,22,23,53,80,111,179,443,2049,8009,8080,8443,3306 <NETWORK/CIDR> 
+
+# generic fingerprinting linux udp -- dhcp, tftp, snmp, vpn
+proxychains nmap -oA dmz_udp_fingerprinting -sU -sV --open -p67,68,69,161,162,1194 <NETWORK/CIDR>
+
+# windows fingerprint -- dns, rpc/dcom, smb/netbios, smb, http(s), rdp, ldap(s), winrm, sccm, mssql 
+proxychains nmap -v -T 5 -Pn -sT -sC -sV -oA <NETWORK>_service_fiingerprint_scan" --open -p53,135,137,139,445,80,443,3389,386,636,5985,2701,1433 <NETWORK/CIDR>
+        
+# check http headers
+proxychains nmap -v --script http-headers -T 3 --open -p80,443 -oA <NETWORK>_http_header_scan <NETWORK/CIDR>
+
+# check for smb relay 
+proxychains nmap -v -Pn -sT --script smb-security-mode,smb2-security-mode -T 3 --open -p445 -oA <NETWORK>_smb_settings_scans <NETWORK/CIDR>
+
+# discover modbus
+proxychains nmap -v -sT -p502 -sV -oA <NETWORK>_modbusscan --open <NETWORK/CIDR>
+
+# discover ipprinter
+proxychains nmap -v -sT -p631 -sV -oA <NETWORK>_ippscan --open <NETWORK/CIDR>
+```
+
 ###### BGP HIJACK
 ```txt
 # bgp prefix hijack scenario e.g. preferred 65.x.101.0/25 over /24
