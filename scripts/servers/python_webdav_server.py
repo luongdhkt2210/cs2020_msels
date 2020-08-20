@@ -41,7 +41,6 @@ import sys,urllib,re,urlparse
 from time import time, timezone, strftime, localtime, gmtime
 import os, shutil, uuid, md5, mimetypes, base64
 
-# 获取本机IP地址
 def get_localip():
     try:
        gAdd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -152,9 +151,9 @@ class DirCollection(FileMember, Collection):
         l = os.listdir(self.fsname) # obtain a copy of dirlist
         tcount=0
         for tmpi in l:
-        		if os.path.isfile(self.fsname+tmpi) == False:
-        				l[tcount]=l[tcount]+'/'
-        		tcount += 1
+                if os.path.isfile(self.fsname+tmpi) == False:
+                        l[tcount]=l[tcount]+'/'
+                tcount += 1
         r = []
         for f in l:
             if f[-1] != '/':
@@ -164,17 +163,17 @@ class DirCollection(FileMember, Collection):
             r.append(m)
         return r
 
-		# Return WebDav Root Dir info
+        # Return WebDav Root Dir info
     def rootdir(self):
-    	return self.fsname
-    	
+        return self.fsname
+
     def findMember(self, name):
         """Search for a particular member."""
         l = os.listdir(self.fsname) # obtain a copy of dirlist
         tcount=0
         for tmpi in l:
                 if os.path.isfile(self.fsname+tmpi) == False:
-        				l[tcount]=l[tcount]+'/'
+                        l[tcount]=l[tcount]+'/'
                 tcount += 1
         if name in l:
             if name[-1] != '/':
@@ -718,7 +717,7 @@ class DAVRequestHandler(BaseHTTPRequestHandler):
      
      # disable log info output to screen    
     def log_message(self,format,*args):
-    	pass
+        pass
 
 class BufWriter:
     def __init__(self, w, debug=True):
@@ -761,7 +760,7 @@ if __name__ == '__main__':
     # Get local IP address
     import socket
     myaddr = get_localip()
-    print 'WebDav Server run at '+myaddr+':'+str(srvport)+'...'
+    print('WebDav Server run at '+myaddr+':'+str(srvport)+'...')
     server_address = ('', srvport)
     # WebDav Auth User/Password file 
     # if not this file ,the auth function disable.

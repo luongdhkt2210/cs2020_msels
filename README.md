@@ -1,129 +1,4 @@
-# CS2020 repository
-
-###### GROUPS
-```txt
-# initial entry 
-1. viewstate .net box (box and user)
-2. rsync dmz boxes (network only)
-3. bgp hijack for creds to dmz and internal (group 2)
-4. mitm dhcp6 for ipv4, arp spoof ?
-
-# mitm greyspace
-arp spoof master dns
-dhcp v6 to v4
-llmnr, nbtns, addns dns
-rdp hijack, ssh hijack
-
-# dmz prefix hijack
-quaqqa route for 65.x.101.0/25 prefix
-rogue ssh ?
-master dns hijack (out of scope)
-dmz dns hijack (mitm to external)
-web proxy hijack (mitm gateway)
-ftp hijack (rogue server creds)
-
-# dmz boxes
-rsync or ssh for access
-c2 (icmp or http, ssh)
-proxy (socks or http shell)
-persistence (redghost, cron, immutable if root)
-linenum (find suid)
-prievesc (suid but not needed)
-proxy (icmp, socks, or http shell)
-malware (russian)
-evade (clear logs, timestamps)
-
-# external .net box (prod windows, no auth)
-c2 (icmp or wmi, winrm, smb)
-proxy (socks ip4 to ipv4)
-host enum (seatbelt, edr, host)
-persistence user (wmi, registry, fs)
-net enum (bloodhound)
-kerberoast spns (user to dev)
-local privesc (potato svc account, user to dev)
-loot memory/registry (local admin)
-
-# pivot sharepoint (needs auth)
-sharepoint cve(s)
-c2 (icmp or http, wmi, winrm, smb)
-proxy (socks ipv4 to ipv6)
-host enum (seatbelt, edr, host)
-persistence (wmi)
-loot memory/registry (local admin)
-net enum dev share (machine key for dev user)
-local privesc (potato svc account, user to dev)
-downgrade attack (user ntlm to dev)
-
-# pivot dev windows (requires auth)
-share with config (machine key)
-c2 (icmp or http)
-proxy (ipv6 to ipv4)
-host enum 
-persistence
-loot registry (local admin)
-domain privesc token theft (admin sql) 
-domain privesc proc spoof (admin sql)
-downgrade attack (admin sql)
-
-# pivot file share (requires auth)
-share with configs to dev
-backups for ransomware?
-
-# pivot sql server (no auth for report)
-sql report/server cve 
-sql sysadmin xp_cmdshell (from dev windows user)
-c2 (icmp only)
-proxy 
-host enum 
-persistence
-loot memory/registry (hashes for privesc)
-unconstrained aes and ntlm box hash
-data exfil
-
-# dcsync on dc 1
-print spool (only dc1)
-golden ticket 
-dcysnc
-c2 (socks)
-proxy (no segmentation)
-disable rdp svc, port forward to dev windows
-
-# dc 2
-no print spool
-sysvol with shared password to (different user password for admin dev windows)
-ssh key to dev linux (user)
-c2 (socks)
-proxy (no segmentation)
-
-# dev linux
-rsync user
-ssh via dc2 
-bash history root password prod linux
-malware (russian)
-
-# prod linux
-ssh for access 
-c2 
-proxy (ssh)
-password or key to ippprinter
-password or key to scada linux
-password or key to dev linux
-malware (russian)
-
-# ippprinter
-ssh or telnet for access
-default creds, cups cve, snmpset
-pivot point to scada network (no segmentation)
-proxy (microsocks or ssh?) 
-malware (russian)?
-
-# scada linux
-rsync or ssh for access
-malware (russian)?
-c2 (icmp)
-proxy (icmp?)
-
-```
+# 2020 repository
 
 ###### GROUP 1
 ```txt
@@ -141,7 +16,7 @@ persistence (redghost, cron, immutable if root)
 linenum (find suid)
 prievesc (suid but not needed)
 proxy (icmp, socks, or http shell)
-malware (russian fake malware? redghost)
+malware (fake malware? redghost)
 evade (clear logs, timestamps)
 
 # external .net box (prod windows, no auth)
@@ -220,7 +95,7 @@ disable winrm, change port, or port forward to dev windows (if high speed team?)
 *struts cve
 loot fs (ssh keys for prod linux, shared key for multiple boxes?) 
 bash history root password prod linux
-malware (russian fake... redghost?)
+malware (fake... redghost?)
 proxy (ssh)
 
 # prod linux
@@ -229,18 +104,18 @@ proxy (ssh)
 c2 (http)
 proxy (ssh)
 loot fs (password or key to scada linux, shared password and keys to other boxes?)
-malware (russian fake.. redghost?)
+malware (fake.. redghost?)
 
 # ippprinter
 *default creds, cups cve, snmpset
 *print exploit famework, crappy shell
 pivot point to scada network (no segmentation?)
 proxy (microsocks or ssh?) 
-malware (russian or possible)?
+malware (possible)?
 
 # scada linux
 ssh for access
-malware (russian or ?)
+malware (?)
 c2 (icmp?)
 proxy (socks?)
 persistence (redghost or malware)
