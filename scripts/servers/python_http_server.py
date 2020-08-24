@@ -1,10 +1,10 @@
 #!/usr/bin/python
 from SimpleHTTPServer import SimpleHTTPRequestHandler
-import requests, SocketServer
+import requests, SocketServer, ssl
 from pwn import *
 from sys import argv
 
-
+# openssl req -new -x509 -keyout server.pem -out server.pem -days 365 -nodes
 context.log_level = 'info'
 
 
@@ -36,6 +36,8 @@ class Server(SocketServer.TCPServer):
     def __init__(self, payload, ip_address='0.0.0.0', port=80):
         self.payload = payload
         SocketServer.TCPServer.__init__(self, (ip_address, port), Handler)
+        if port == 443:
+            self.socket = ssl.wrap_socket(self.socket, certfile='./server.pem', server_side=True)
 
     def start_limited(self):
         self.handle_request()
