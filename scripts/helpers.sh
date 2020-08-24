@@ -202,7 +202,7 @@ function harvestData(){
     # DESCRIPTION: Harvest online data for a given domain, save output to sqlite.
     # ARGUMENT: harvestData DOMAIN.
     DOMAIN=$1;
-    theHarvester -d ${DOMAIN} -s all -f ${DOMAIN}.xml;
+    theHarvester -d ${DOMAIN} -b all -f ${DOMAIN}.xml;
     return;
 }
 
