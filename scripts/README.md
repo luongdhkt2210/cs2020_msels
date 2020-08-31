@@ -187,4 +187,3 @@
 	 dumpDCOnlyTGT dc.target.local
 	 searchsploit "privesc"|grep local
 	 googleSearch github.com "privesc CVE-2020-XXXX"
-	
