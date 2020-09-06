@@ -2,7 +2,7 @@
 ```txt
 	# setting up, socks, port forwarding for payload delivery
 	ssh -f -N -D <LOCALIP>:<LOCALPORT> root@<REMOTEIP> # from local box
-	socat TCP-LISTEN:<LOCALPORT>,bind=<LOCALIP>,fork,reuseaddr TCP:<REMOTEIP>:<REMOTEPORT> # from redirector
+	socat TCP-LISTEN:<LOCALPORT>,bind=<LOCALIP>,fork,reuseaddr TCP:<REMOTEIP>:<REMOTEPORT> # from redirector (port 445, 80, 443)
 
 	# serving via http
 	python -m SimpleHTTPServer <LPORT>
