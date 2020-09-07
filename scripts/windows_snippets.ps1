@@ -56,3 +56,8 @@ gci -file -filter *.config|%{([xml](gc $_.fullname)).selectnodes("configuration/
 $boxes=get-netcomputer -domain xxxxxxxxx -fulldata;
 $boxes|%{$_|add-member -membertype noteproperty -name ipaddress -value (get-ipaddress $_.dnshostname).ipaddress -force};
 $boxes|%{$_|add-member -membertype noteproperty -name shares -value (invoke-sharefinder -computername $_.dnshostname -excludestandard -checkshareaccess) -force};
+
+# base64 encoding
+[system.text.encoding]::default.getstring([system.convert]::frombase64string("base64"))
+$base64string = [Convert]::ToBase64String([IO.File]::ReadAllBytes($FileName))
+[IO.File]::WriteAllBytes($FileName, [Convert]::FromBase64String($base64string))
